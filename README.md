@@ -1,6 +1,8 @@
 # RoyleYoung
 Royle Young models for area or transect searches where you detect individuals (not their sign). Density and 3rd order resource selection covariates.  Data simulators and files to fit models in nimble. Known ID versions only.
 
+Must have nimble installed, even to simulate data. Must have RTools installed to install nimble.
+
 Disclaimer: I have tested recent versions of this model, but not this one exactly. No indications of bugs, but will remove this when tested more thoroughly.
 
 
