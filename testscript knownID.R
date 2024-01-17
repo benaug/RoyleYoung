@@ -23,16 +23,16 @@ library(geoR)
 D.cov <- grf(n.cells,grid=dSS,cov.pars=c(10,150))[[2]]
 D.cov <- as.numeric(scale(D.cov))
 par(mfrow=c(1,1),ask=FALSE)
-image(x.vals,y.vals,matrix(D.cov,n.cells.x,n.cells.y),main="D.cov")
+image(x.vals,y.vals,matrix(D.cov,n.cells.x,n.cells.y),main="D.cov",xlab="X",ylab="Y")
 
 #make state space mask - just making a circle
 dists <- sqrt((dSS[,1]-mean(dSS[,1]))^2+(dSS[,2]-mean(dSS[,2]))^2)
 InSS <- 1*(dists<175)
-image(x.vals,y.vals,matrix(D.cov*InSS,n.cells.x,n.cells.y),main="D.cov")
+image(x.vals,y.vals,matrix(D.cov*InSS,n.cells.x,n.cells.y),main="D.cov",xlab="X",ylab="Y")
 
 #simulate an RSF cov. Randomly distribute some cells animals really like
 rsf.cov <- rbinom(n.cells,1,p=0.1)
-image(x.vals,y.vals,matrix(rsf.cov,n.cells.x,n.cells.y),main="rsf.cov")
+image(x.vals,y.vals,matrix(rsf.cov,n.cells.x,n.cells.y),main="rsf.cov",xlab="X",ylab="Y")
 
 #simulate effort - I admit, I am being lazy here, but this gives us
 #effort that varies over space with replication. You need some minimal
@@ -64,7 +64,7 @@ for(k in 1:K){
 }
 
 #visualize effort summed over all occasions
-image(x.vals,y.vals,matrix(rowSums(effort),n.cells.x,n.cells.y),main="Search Effort")
+image(x.vals,y.vals,matrix(rowSums(effort),n.cells.x,n.cells.y),main="Search Effort",xlab="X",ylab="Y")
 
 # visualize effort on each occasion, scroll through k,
 # can see different areas surveyed on each occasions 1-4 and 5-8
@@ -108,6 +108,14 @@ table(rowSums(data$capture$y)) #number of inds captures X times
 hist(data$summaries$p.marg.i,breaks=50,main="Individual Cumulative Detection Probabilities|Search Effort",
      xlim=c(0,1),xlab="Detection Prob")
 
+
+#can inspect every individual's availability and use distributions
+# par(mfrow=c(2,1)) #if you want to plot availability over use
+# i <- 1
+# i <- i + 1
+# image(x.vals,y.vals,matrix(data$truth$avail.dist[i,],n.cells.x,n.cells.y),main="Availibility Distribution",xlab="X",ylab="Y")
+# image(x.vals,y.vals,matrix(data$truth$use.dist[i,],n.cells.x,n.cells.y),main="Use Distribution",xlab="X",ylab="Y")
+# par(mfrow=c(1,1)) #set back
 
 ##Fit Model
 library(nimble)

@@ -209,7 +209,8 @@ sim.RY <-
                       n.tel.inds=n.tel.inds,n.locs.ind=n.locs.ind,
                       InSS=InSS,n.cells=n.cells,n.cells.x=n.cells.x,n.cells.y=n.cells.y)
     truth <- list(lambda=lambda,N=N,s=s,u=u,s.cell=s.cell,u.cell=u.cell,
-                  ID=ID,n.cap=n.cap,s.tel=s.tel,s.tel.cell=s.tel.cell)
+                  ID=ID,n.cap=n.cap,s.tel=s.tel,s.tel.cell=s.tel.cell,
+                  use.dist=use.dist,avail.dist=avail.dist)
     capture <- list(y=y,u.obs=u.obs, u.cell=u.cell.obs, #known ID
                     this.k=this.k,u.obs2D=u.obs2D) #unknown ID
     telemetry <- list(u.tel=u.tel,u.cell.tel=u.cell.tel,u.xlim.tel=u.xlim.tel,
