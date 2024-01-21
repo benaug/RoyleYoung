@@ -5,8 +5,8 @@ sim.RY <-
            K=NA,K.tel=NA,n.tel.inds=NA){
     if(K==1)stop("K must be >1")
     if(xlim[1]!=0|ylim[1]!=0)stop("xlim and ylim must start at 0.")
-    if((diff(range(xlim))/res)%%1!=0)stop("The range of xlim divided by 'res' must be a whole number")
-    if((diff(range(ylim))/res)%%1!=0)stop("The range of ylim divided by 'res' must be a whole number")
+    if((diff(range(xlim))/res)%%1!=0)stop("The range of xlim must be divisible by 'res'")
+    if((diff(range(ylim))/res)%%1!=0)stop("The range of ylim must be divisible by 'res'")
     # make discrete state space
     x.vals <- seq(xlim[1]+res/2,xlim[2]-res/2,res)
     y.vals <- seq(ylim[1]+res/2,ylim[2]-res/2,res)
@@ -68,7 +68,7 @@ sim.RY <-
       }
     }
     rsf.cov.plot <- rsf.cov
-    rsf.cov.plot[InSS==0] <- -Inf
+    # rsf.cov.plot[InSS==0] <- -Inf
     image(x.vals,y.vals,matrix(rsf.cov.plot,length(x.vals),length(y.vals)),
           main="Individual ACs and Site Use",xlab="X",ylab="Y")
     grid(n.cells.x,n.cells.y,lwd=1,lty=1,col="grey80")

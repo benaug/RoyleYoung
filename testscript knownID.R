@@ -1,38 +1,47 @@
-load("grid.objects.RData") #load some objects I'll use to make the grid system
 library(nimble) #data simulator uses nimble
 library(truncnorm) #required for data simulator
-setwd("D:/Sync/Cornell/van Manen/Simulate")
 source("sim.RY.R")
-source("Nimble Functions.R") #nimble functions used in data simulator
+source("Nimble Functions knownID.R") #nimble functions used in data simulator
+#get some colors
+library(RColorBrewer)
+cols1 <- brewer.pal(9,"Greens")
+cols2 <- brewer.pal(9,"YlOrBr")
 
 #state space. Must start at (0,0)
-xlim <- round(grid.objects$xlim) #rounding here bc upper bounds not exactly integers
-ylim <- round(grid.objects$ylim)
-dSS <- grid.objects$dSS
-res <- grid.objects$res
-x.vals <- grid.objects$x.vals
-y.vals <- grid.objects$y.vals
+xlim <- c(0,300)
+ylim <- c(0,300)
+res <- 5 #resolution, cell width/height
+if(xlim[1]!=0|ylim[1]!=0)stop("xlim and ylim must start at 0.")
+if((diff(range(xlim))/res)%%1!=0)stop("The range of xlim must be divisible by 'res'")
+if((diff(range(ylim))/res)%%1!=0)stop("The range of ylim must be divisible by 'res'")
+
+#make discrete state space objects
+x.vals <- seq(xlim[1]+res/2,xlim[2]-res/2,res)
+y.vals <- seq(ylim[1]+res/2,ylim[2]-res/2,res)
+dSS <- as.matrix(cbind(expand.grid(x.vals,y.vals)))
 n.cells <- nrow(dSS)
 n.cells.x <- length(x.vals)
 n.cells.y <- length(y.vals)
-# rsf.cov <- 1*(grid.objects$rsf.cov>0)
 
-#simulate a D.cov
-set.seed(132402)
+#simulate a D.cov, higher cov.pars for large scale cov
+set.seed(1320562)
 library(geoR)
-D.cov <- grf(n.cells,grid=dSS,cov.pars=c(10,150))[[2]]
-D.cov <- as.numeric(scale(D.cov))
+D.cov <- grf(n.cells,grid=dSS,cov.pars=c(25,25),messages=FALSE)[[2]]
+D.cov <- as.numeric(scale(D.cov)) #scale
 par(mfrow=c(1,1),ask=FALSE)
-image(x.vals,y.vals,matrix(D.cov,n.cells.x,n.cells.y),main="D.cov",xlab="X",ylab="Y")
+image(x.vals,y.vals,matrix(D.cov,n.cells.x,n.cells.y),main="D.cov",xlab="X",ylab="Y",col=cols1)
+
+#simulate an rsf cov, lower cov.pars for finer scale cov
+set.seed(24674345)
+rsf.cov <- grf(n.cells,grid=dSS,cov.pars=c(5,5),messages=FALSE)[[2]]
+rsf.cov <- as.numeric(scale(rsf.cov)) #scale
+image(x.vals,y.vals,matrix(rsf.cov,n.cells.x,n.cells.y),main="rsf.cov",xlab="X",ylab="Y",col=cols1)
 
 #make state space mask - just making a circle
 dists <- sqrt((dSS[,1]-mean(dSS[,1]))^2+(dSS[,2]-mean(dSS[,2]))^2)
-InSS <- 1*(dists<175)
-image(x.vals,y.vals,matrix(D.cov*InSS,n.cells.x,n.cells.y),main="D.cov",xlab="X",ylab="Y")
-
-#simulate an RSF cov. Randomly distribute some cells animals really like
-rsf.cov <- rbinom(n.cells,1,p=0.1)
-image(x.vals,y.vals,matrix(rsf.cov,n.cells.x,n.cells.y),main="rsf.cov",xlab="X",ylab="Y")
+rad <- min(diff(xlim),diff(ylim))/2
+InSS <- 1*(dists<rad)
+image(x.vals,y.vals,matrix(D.cov*InSS,n.cells.x,n.cells.y),main="D.cov",xlab="X",ylab="Y",col=cols1)
 
 #simulate effort - I admit, I am being lazy here, but this gives us
 #effort that varies over space with replication. You need some minimal
@@ -40,57 +49,60 @@ image(x.vals,y.vals,matrix(rsf.cov,n.cells.x,n.cells.y),main="rsf.cov",xlab="X",
 K <- 8
 #Let's implement a state space buffer and only sample inside that.
 #buffer should be at least 3sigma (which we haven't defined, yet, I use 7.8 below)
-search.buff <- 1*(dists<150)
+target.sigma <- 7.5
+search.buff <- 1*(dists<(rad-3*target.sigma))
 
 #but let's consider we don't survey the entire state space on each occasion
 #let's say there are 4 sections and we do 1 per occasion
+split.x <- x.vals[round(length(x.vals)/2)]
+split.y <- y.vals[round(length(y.vals)/2)]
 idx.list <- vector("list",K)
-idx.list[[1]] <- which(dSS[,1]<175&dSS[,2]<200&search.buff)
-idx.list[[2]] <- which(dSS[,1]<175&dSS[,2]>=200&search.buff)
-idx.list[[3]] <- which(dSS[,1]>=175&dSS[,2]>=200&search.buff)
-idx.list[[4]] <- which(dSS[,1]>=175&dSS[,2]<200&search.buff)
+idx.list[[1]] <- which(dSS[,1]<split.x&dSS[,2]<split.y&search.buff)
+idx.list[[2]] <- which(dSS[,1]<split.x&dSS[,2]>=split.y&search.buff)
+idx.list[[3]] <- which(dSS[,1]>=split.x&dSS[,2]>=split.y&search.buff)
+idx.list[[4]] <- which(dSS[,1]>=split.x&dSS[,2]<split.y&search.buff)
 #must have replication, using same survey cells as above
-idx.list[[5]] <- which(dSS[,1]<175&dSS[,2]<200&search.buff)
-idx.list[[6]] <- which(dSS[,1]<175&dSS[,2]>=200&search.buff)
-idx.list[[7]] <- which(dSS[,1]>=175&dSS[,2]>=200&search.buff)
-idx.list[[8]] <- which(dSS[,1]>=175&dSS[,2]<200&search.buff)
+idx.list[[5]] <- idx.list[[1]]
+idx.list[[6]] <- idx.list[[2]]
+idx.list[[7]] <- idx.list[[3]]
+idx.list[[8]] <- idx.list[[4]]
 
-
+set.seed(3356735)
 effort <- survey <- matrix(0,n.cells,K)
 for(k in 1:K){
-  tmp <- grf(n.cells,grid=dSS,cov.pars=c(10,50))[[2]]
+  tmp <- grf(n.cells,grid=dSS,cov.pars=c(15,15),nugget=1,messages=FALSE)[[2]]
   effort[idx.list[[k]],k] <- tmp[idx.list[[k]]]
   survey[idx.list[[k]],k] <- 1
 }
 
 #visualize effort summed over all occasions
-image(x.vals,y.vals,matrix(rowSums(effort),n.cells.x,n.cells.y),main="Search Effort",xlab="X",ylab="Y")
+image(x.vals,y.vals,matrix(rowSums(effort),n.cells.x,n.cells.y),main="Search Effort",xlab="X",ylab="Y",col=cols2)
 
 # visualize effort on each occasion, scroll through k,
 # can see different areas surveyed on each occasions 1-4 and 5-8
 # k <- 1
 # k <- k+1
-# image(x.vals,y.vals,matrix(effort[,k],n.cells.x,n.cells.y),main="Search Effort")
+# image(x.vals,y.vals,matrix(effort[,k],n.cells.x,n.cells.y),main="Search Effort",col=cols2)
 
 #scale effort, but only in surveyed cell/occasions
 effort[survey==1] <- as.numeric(scale(effort[survey==1]))
 
 
-D.beta0 <- -7.0 #baseline D
-D.beta1 <- 1.25 #density coefficient 
-rsf.beta <- 4 #rsf coefficient
+D.beta0 <- -6.5 #baseline D
+D.beta1 <- 1.0 #density coefficient 
+rsf.beta <- 1.5 #rsf coefficient
 beta.p.int <- -0.5 #baseline detection prob
 beta.p.effort <- 2.5 #effort effect no detection prob
 sigma <- 7.8 #spatial scale of availability distribution
-n.tel.inds <- 30 #number of telemetry individuals
-K.tel <- 20 #number of telemetry locations per individual
+n.tel.inds <- 10 #number of telemetry individuals
+K.tel <- 15 #number of telemetry locations per individual
 
 #visualize distribution of p across cells given search effort and detection parameters
 p.test <- plogis(beta.p.int + beta.p.effort*effort)
 par(mfrow=c(1,1),ask=FALSE)
 hist(p.test[survey==1])
 
-set.seed(3234) #change this for new data set
+set.seed(32348) #change this for new data set
 
 data <- sim.RY(D.beta0=D.beta0,D.beta1=D.beta1,rsf.beta=rsf.beta,
                sigma=sigma,beta.p.int=beta.p.int,beta.p.effort=beta.p.effort,
@@ -110,6 +122,7 @@ hist(data$summaries$p.marg.i,breaks=50,main="Individual Cumulative Detection Pro
 
 
 #can inspect every individual's availability and use distributions
+#useful to check if simulated behavior is realistic
 # par(mfrow=c(2,1)) #if you want to plot availability over use
 # i <- 1
 # i <- i + 1
@@ -125,10 +138,10 @@ source("init.data.RY.knownID.R")
 source("NimbleModel knownID.R")
 source("Nimble Functions knownID.R")
 source("sSampler Dcov RSF Marginal.R")
-M <- 300 #data augmentation limit. Must be larger than simulate N. If N posterior hits M, need to raise M and try again.
+M <- 300 #data augmentation limit. Must be larger than simulated N. If N posterior hits M, need to raise M and try again.
 if(M<=data$truth$N)stop("Raise M to be larger than simulated N.")
 
-inits <- list(sigma=7.8)
+inits <- list(sigma=5) #needs to be set somewhere in the ballpark of truth
 nimbuild <- init.data.RY.knownID(data=data,inits=inits,M=M)
 
 n.surveyed.cells <- colSums(survey)
@@ -239,7 +252,7 @@ end.time-start.time2 # post-compilation run time
 
 library(coda)
 mvSamples = as.matrix(Cmcmc$mvSamples)
-plot(mcmc(mvSamples[20:nrow(mvSamples),])) #discarding some burnin here. Can't plot 1's sample which is all NA
+plot(mcmc(mvSamples[20:nrow(mvSamples),])) #discarding some burnin here. Can't plot 1st sample which is all NA
 
 data$truth$lambda #target expected abundance
 data$truth$N #target realized abundance
