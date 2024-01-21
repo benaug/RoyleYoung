@@ -92,8 +92,8 @@ D.beta0 <- -6.5 #baseline D
 D.beta1 <- 1.0 #density coefficient 
 rsf.beta <- 1.5 #rsf coefficient
 beta.p.int <- -0.5 #baseline detection prob
-beta.p.effort <- 2.5 #effort effect no detection prob
-sigma <- 7.8 #spatial scale of availability distribution
+beta.p.effort <- 2.5 #effort effect on detection prob
+sigma <- 7.5 #spatial scale of availability distribution
 n.tel.inds <- 10 #number of telemetry individuals
 K.tel <- 15 #number of telemetry locations per individual
 

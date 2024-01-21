@@ -89,7 +89,7 @@ getAvail <- nimbleFunction(
     returnType(double(1))
     avail.dist.x <- rep(0,n.cells.x)
     avail.dist.y <- rep(0,n.cells.y)
-    delta <- 1e-8 #this sets the degree of trimming used to get individual availality distributions
+    delta <- 1e-8 #this sets the degree of trimming used to get individual availability distributions
     x.limits <- qnorm(c(delta,1-delta),mean=s[1],sd=sigma)
     y.limits <- qnorm(c(delta,1-delta),mean=s[2],sd=sigma)
     #convert to grid edges instead of centroids
