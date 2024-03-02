@@ -168,7 +168,7 @@ sim.RY <-
 
     #discard uncaptured inds and disaggregate data
     caught <- which(rowSums(y)>0)
-    n.cap <- length(caught)
+    n <- length(caught)
     y <- y[caught,]
     # u.full <- u
     u <- u.obs <- u[caught,,]
@@ -181,13 +181,10 @@ sim.RY <-
     # s.full <- s
     s <- s[caught,]
     s.cell <- s.cell[caught]
-    n <- length(caught)
-    ID <- rep(1:nrow(y),each=K)
-    this.k <- rep(1:K,times=n.cap)
-
-    rem.idx <- which(c(t(y))==0)
-    ID <- ID[-rem.idx]
-    this.k <- this.k[-rem.idx]
+    
+    tmp <- which(y==1,arr.ind=TRUE)
+    ID <- tmp[,1]
+    this.k <- tmp[,2]
     n.samples <- length(this.k)
     
     u.obs2D <- matrix(NA,nrow=n.samples,ncol=2)
@@ -196,7 +193,7 @@ sim.RY <-
     }
 
     #check data disaggregation
-    y.check <- matrix(0,nrow=n.cap,ncol=K)
+    y.check <- matrix(0,nrow=n,ncol=K)
     u.check <- u.obs*NA
     for(i in 1:length(ID)){
       y.check[ID[i],this.k[i]] <- 1
@@ -206,10 +203,10 @@ sim.RY <-
     if(!all(u.check==u.obs,na.rm=TRUE))stop("Error rebuilding data. Report Bug.")
     
     constants <- list(K=K,K.tel=K.tel,xlim=xlim,ylim=ylim,dSS=dSS,res=res,cells=cells,x.vals=x.vals,y.vals=y.vals,
-                      n.tel.inds=n.tel.inds,n.locs.ind=n.locs.ind,
+                      n.tel.inds=n.tel.inds,n.locs.ind=n.locs.ind,n.samples=n.samples,
                       InSS=InSS,n.cells=n.cells,n.cells.x=n.cells.x,n.cells.y=n.cells.y)
-    truth <- list(lambda=lambda,N=N,s=s,u=u,s.cell=s.cell,u.cell=u.cell,
-                  ID=ID,n.cap=n.cap,s.tel=s.tel,s.tel.cell=s.tel.cell,
+    truth <- list(lambda=lambda,lambda.cell=lambda.cell,rsf=rsf,N=N,s=s,u=u,s.cell=s.cell,u.cell=u.cell,
+                  ID=ID,n=n,s.tel=s.tel,s.tel.cell=s.tel.cell,
                   use.dist=use.dist,avail.dist=avail.dist)
     capture <- list(y=y,u.obs=u.obs, u.cell=u.cell.obs, #known ID
                     this.k=this.k,u.obs2D=u.obs2D) #unknown ID

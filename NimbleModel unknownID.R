@@ -23,7 +23,7 @@ NimModel <- nimbleCode({
   pi.cell[1:n.cells] <- lambda.cell[1:n.cells]/pi.denom #expected proportion of total N in cell c
   pi.denom <- sum(lambda.cell[1:n.cells])
   lambda <- D.intercept*pi.denom #Expected N
-  N ~ dpois(lambda)
+  N ~ dpois(lambda) #Realized N
   #Resource selection function evaluated across all cells
   rsf[1:n.cells] <- exp(rsf.beta*rsf.cov[1:n.cells])
   #Detection model
@@ -33,8 +33,8 @@ NimModel <- nimbleCode({
                                       n.surveyed.cells=n.surveyed.cells[k],
                                       beta.p.int=beta.p.int,beta.p.effort=beta.p.effort)
   }
-  for(i in 1:M){
-    #continuous activity center likelihood inside cell
+  for(i in 1:M){ #individual likelihoods
+    #continuous activity center prior inside cell
     s[i,1] ~ dunif(xlim[1],xlim[2])
     s[i,2] ~ dunif(ylim[1],ylim[2])
     s.cell[i] <- cells[trunc(s[i,1]/res)+1,trunc(s[i,2]/res)+1] #extract activity center cell
@@ -54,7 +54,7 @@ NimModel <- nimbleCode({
       #observation likelihood
       #for detections, use detection likelihood conditional on cell of detection
       #for nondetections, marginalize detection over unobserved site use, u.cell, marginal prob(not detected). trimmed
-      y[i,k] ~ dRYmarg(u.cell=u.cell[i,k],sigma=sigma,z=z[i],p=p[1:n.surveyed.cells[k],k],
+      y.true[i,k] ~ dRYmarg(u.cell=u.cell[i,k],sigma=sigma,z=z[i],p=p[1:n.surveyed.cells[k],k],
                             surveyed.cells=surveyed.cells[1:n.surveyed.cells[k],k],n.surveyed.cells=n.surveyed.cells[k],
                             use.dist=use.dist[i,1:n.cells],
                             pos.cells=pos.cells[i,1:n.cells],n.pos.cells=n.pos.cells[i],n.cells=n.cells,
@@ -84,4 +84,9 @@ NimModel <- nimbleCode({
       u.tel[i,k,2] ~ T(dnorm(s.tel[i,2],sd=sigma),u.ylim.tel[i,k,1],u.ylim.tel[i,k,2])
     }
   }
+  #latent ID derived variables
+  #number of detections per individual
+  capcounts[1:M] <- Getcapcounts(y.true=y.true[1:M,1:K])
+  #number of detected individuals
+  n <- Getncap(capcounts=capcounts[1:M],ID=ID[1:n.samples])
 })# end model
