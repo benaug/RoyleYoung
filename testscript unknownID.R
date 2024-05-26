@@ -10,9 +10,9 @@ cols1 <- brewer.pal(9,"Greens")
 cols2 <- brewer.pal(9,"YlOrBr")
 
 #state space. Must start at (0,0)
-xlim <- c(0,100)
-ylim <- c(0,100)
-res <- 2.5 #resolution, cell width/height
+xlim <- c(0,40)
+ylim <- c(0,40)
+res <- 1 #resolution, cell width/height
 if(xlim[1]!=0|ylim[1]!=0)stop("xlim and ylim must start at 0.")
 if((diff(range(xlim))/res)%%1!=0)stop("The range of xlim must be divisible by 'res'")
 if((diff(range(ylim))/res)%%1!=0)stop("The range of ylim must be divisible by 'res'")
@@ -28,14 +28,14 @@ n.cells.y <- length(y.vals)
 #simulate a D.cov, higher cov.pars for large scale cov
 set.seed(1320562)
 library(geoR)
-D.cov <- grf(n.cells,grid=dSS,cov.pars=c(25,25),messages=FALSE)[[2]]
+D.cov <- grf(n.cells,grid=dSS,cov.pars=c(5,5),messages=FALSE)[[2]]
 D.cov <- as.numeric(scale(D.cov)) #scale
 par(mfrow=c(1,1),ask=FALSE)
 image(x.vals,y.vals,matrix(D.cov,n.cells.x,n.cells.y),main="D.cov",xlab="X",ylab="Y",col=cols1)
 
 #simulate an rsf cov, lower cov.pars for finer scale cov
 set.seed(24674345)
-rsf.cov <- grf(n.cells,grid=dSS,cov.pars=c(5,5),messages=FALSE)[[2]]
+rsf.cov <- grf(n.cells,grid=dSS,cov.pars=c(1,1),messages=FALSE)[[2]]
 rsf.cov <- as.numeric(scale(rsf.cov)) #scale
 image(x.vals,y.vals,matrix(rsf.cov,n.cells.x,n.cells.y),main="rsf.cov",xlab="X",ylab="Y",col=cols1)
 
@@ -51,7 +51,7 @@ image(x.vals,y.vals,matrix(D.cov*InSS,n.cells.x,n.cells.y),main="D.cov",xlab="X"
 K <- 12
 #Let's implement a state space buffer and only sample inside that.
 #buffer should be at least 3sigma (which we haven't defined, yet, I use 7.8 below)
-target.sigma <- 2
+target.sigma <- 1
 search.buff <- 1*(dists<(rad-3*target.sigma))
 
 #but let's consider we don't survey the entire state space on each occasion
@@ -95,12 +95,12 @@ image(x.vals,y.vals,matrix(rowSums(effort),n.cells.x,n.cells.y),main="Search Eff
 effort[survey==1] <- as.numeric(scale(effort[survey==1]))
 
 
-D.beta0 <- -4.5 #baseline D
+D.beta0 <- -2.675 #baseline D
 D.beta1 <- 1.0 #density coefficient 
 rsf.beta <- 1.5 #rsf coefficient
-beta.p.int <- -0.5 #baseline detection prob
-beta.p.effort <- 2.5 #effort effect on detection prob
-sigma <- 2 #spatial scale of availability distribution
+beta.p.int <- -1.75 #baseline detection prob
+beta.p.effort <- 1.5 #effort effect on detection prob
+sigma <- 1 #spatial scale of availability distribution
 n.tel.inds <- 10 #number of telemetry individuals
 K.tel <- 15 #number of telemetry locations per individual
 
@@ -142,7 +142,7 @@ nimbleOptions(determinePredictiveNodesInModel = FALSE)
 source("init.data.RY.unknownID.R")
 source("NimbleModel unknownID.R")
 source("sSampler Dcov RSF Marginal.R")
-M <- 200 #data augmentation limit. Must be larger than simulated N. If N posterior hits M, need to raise M and try again.
+M <- 250 #data augmentation limit. Must be larger than simulated N. If N posterior hits M, need to raise M and try again.
 if(M<=data$truth$N)stop("Raise M to be larger than simulated N.")
 
 inits <- list(sigma=1) #needs to be set somewhere in the ballpark of truth
@@ -199,11 +199,12 @@ for(i in 1:n.tel.inds){
   }
 }
 
-Niminits <- list(z=nimbuild$z,s=nimbuild$s,
+Niminits <- list(z=nimbuild$z,N=nimbuild$N, #must init N to be sum(z.init)
+                 s=nimbuild$s,
                  ID=nimbuild$ID,capcounts=rowSums(nimbuild$y.true),
                  y.true=nimbuild$y.true,N=nimbuild$N,
                  u=nimbuild$u,u.cell=nimbuild$u.cell,
-                 D.beta0=-4,D.beta1=0,
+                 D0=sum(nimbuild$z)/(sum(InSS)*res^2),D.beta1=0,
                  sigma=inits$sigma,
                  beta.p.int=c(0),beta.p.effort=c(2),
                  rsf.beta=2,
@@ -232,7 +233,9 @@ Nimdata <- list(y.true=matrix(NA,nrow=M,ncol=K),u=array(NA,dim=c(M,K,2)),
 
 # set parameters to monitor
 parameters <- c('beta.p.int','beta.p.effort','rsf.beta','D.beta1',
-              'sigma','N','D.beta0','lambda','n')
+              'sigma','N','D0','lambda','n')
+# parameters <- c('beta.p.int','beta.p.effort','rsf.beta','D.beta1',
+#                 'sigma','N','D0','lambda','n')
 
 #can also monitor a different set of parameters with a different thinning rate
 nt <- 2 #thinning rate
@@ -241,7 +244,8 @@ nt <- 2 #thinning rate
 start.time <- Sys.time()
 Rmodel <- nimbleModel(code=NimModel, constants=constants, data=Nimdata,check=FALSE,inits=Niminits)
 #tell nimble which nodes to configure so we don't waste time for samplers we will replace below
-config.nodes <- c("beta.p.int","sigma",'D.beta0','D.beta1','rsf.beta','beta.p.effort')
+# config.nodes <- c("beta.p.int","sigma",'D.beta0','D.beta1','rsf.beta','beta.p.effort')
+config.nodes <- c("beta.p.int","sigma",'D0','D.beta1','rsf.beta','beta.p.effort')
 conf <- configureMCMC(Rmodel,monitors=parameters, thin=nt,useConjugacy = FALSE,
                       nodes=config.nodes) 
 
@@ -298,7 +302,7 @@ for(i in 1:data$constants$n.tel.inds){
                                                               calcNodes.s.tel=calcNodes.s.tel), silent = TRUE)
 }
 
-conf$addSampler(target = c("D.beta0","D.beta1"),
+conf$addSampler(target = c("D0","D.beta1"),
                 type = 'RW_block',control=list(adaptive=TRUE),silent = TRUE)
 
 # Build and compile
@@ -309,14 +313,14 @@ Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 
 # Run the model.
 start.time2 <- Sys.time()
-Cmcmc$run(1000,reset=FALSE) #can keep running this line to extend sampler
+Cmcmc$run(5000,reset=FALSE) #can keep running this line to extend sampler
 end.time <- Sys.time()
 end.time - start.time  # total time for compilation, replacing samplers, and fitting
 end.time - start.time2 # post-compilation run time
 
 library(coda)
 mvSamples <- as.matrix(Cmcmc$mvSamples)
-plot(mcmc(mvSamples[10:nrow(mvSamples),])) #discarding some burnin here. Can't plot 1st sample which is all NA
+plot(mcmc(mvSamples[210:nrow(mvSamples),])) #discarding some burnin here. Can't plot 1st sample which is all NA
 
 data$truth$lambda #target expected abundance
 data$truth$N #target realized abundance

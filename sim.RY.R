@@ -2,7 +2,7 @@
 sim.RY <-
   function(D.beta0=NA,D.beta1=NA,rsf.beta=NA,sigma=NA,beta.p.int=NA,beta.p.effort=NA,
            xlim=NA,ylim=NA,res=NA,InSS=NA,D.cov=NA,rsf.cov=NA,effort=NA,survey=NA,
-           K=NA,K.tel=NA,n.tel.inds=NA){
+           K=NA,K.tel=0,n.tel.inds=0){
     if(K==1)stop("K must be >1")
     if(xlim[1]!=0|ylim[1]!=0)stop("xlim and ylim must start at 0.")
     if((diff(range(xlim))/res)%%1!=0)stop("The range of xlim must be divisible by 'res'")
@@ -119,52 +119,61 @@ sim.RY <-
     
     ####Telemetry data#####
     #simulating from same D model here
-    s.tel.cell <- rcat(n.tel.inds,pi.cell)
-    s.tel <- matrix(NA,n.tel.inds,2)
-    for(i in 1:n.tel.inds){
-      s.xlim <- dSS[s.tel.cell[i],1] + c(-res,res)/2
-      s.ylim <- dSS[s.tel.cell[i],2] + c(-res,res)/2
-      s.tel[i,1] <- runif(1,s.xlim[1],s.xlim[2])
-      s.tel[i,2] <- runif(1,s.ylim[1],s.ylim[2])
-    }
-    #get BVN availability and use distributions
-    avail.dist.tel <- use.dist.tel <- matrix(NA,N,n.cells)
-    for(i in 1:n.tel.inds){
-      avail.dist.tel[i,] <- getAvail(s=s.tel[i,1:2],sigma=sigma,res=res,x.vals=x.vals,
-                                 y.vals=y.vals,n.cells.x=n.cells.x,n.cells.y=n.cells.y)
-      use.dist.tel[i,] <- rsf*avail.dist.tel[i,]
-      use.dist.tel[i,] <- use.dist.tel[i,]/sum(use.dist.tel[i,])
-    }
-    #simulate u's
-    u.tel <- array(NA,dim=c(n.tel.inds,K.tel,2))
-    u.cell.tel <- matrix(NA,n.tel.inds,K.tel)
-    u.xlim.tel <- u.ylim.tel <- array(NA,dim=c(n.tel.inds,K.tel,2))
-    for(i in 1:n.tel.inds){
-      for(k in 1:K.tel){
-        # u.cell.tel[i,k] <- rcat(1,use.dist.tel[i,])
-        u.cell.tel[i,k] <- sample(1:n.cells,1,replace=TRUE,prob=use.dist.tel[i,])
-        u.xlim.tel[i,k,] <- dSS[u.cell.tel[i,k],1] + c(-res,res)/2
-        u.ylim.tel[i,k,] <- dSS[u.cell.tel[i,k],2] + c(-res,res)/2
-        u.tel[i,k,1] <- rtruncnorm(1,a=u.xlim.tel[i,k,1],b=u.xlim.tel[i,k,2],
-                                   mean=s.tel[i,1],sd=sigma)
-        u.tel[i,k,2] <- rtruncnorm(1,a=u.ylim.tel[i,k,1],b=u.ylim.tel[i,k,2],
-                                   mean=s.tel[i,2],sd=sigma)
+    if(n.tel.inds>0){
+      s.tel.cell <- rcat(n.tel.inds,pi.cell)
+      s.tel <- matrix(NA,n.tel.inds,2)
+      for(i in 1:n.tel.inds){
+        s.xlim <- dSS[s.tel.cell[i],1] + c(-res,res)/2
+        s.ylim <- dSS[s.tel.cell[i],2] + c(-res,res)/2
+        s.tel[i,1] <- runif(1,s.xlim[1],s.xlim[2])
+        s.tel[i,2] <- runif(1,s.ylim[1],s.ylim[2])
       }
-    }
-    image(x.vals,y.vals,matrix(rsf.cov.plot,length(x.vals),length(y.vals)),
-          main="Telemetry Individual ACs and Site Use",xlab="X",ylab="Y")
-    grid(n.cells.x,n.cells.y,lwd=1,lty=1,col="grey80")
-    for(i in 1:n.tel.inds){
-      for(k in 1:K.tel){
-        lines(x=c(s.tel[i,1],u.tel[i,k,1]),y=c(s.tel[i,2],u.tel[i,k,2]),col="black")
+      #get BVN availability and use distributions
+      avail.dist.tel <- use.dist.tel <- matrix(NA,N,n.cells)
+      for(i in 1:n.tel.inds){
+        avail.dist.tel[i,] <- getAvail(s=s.tel[i,1:2],sigma=sigma,res=res,x.vals=x.vals,
+                                       y.vals=y.vals,n.cells.x=n.cells.x,n.cells.y=n.cells.y)
+        use.dist.tel[i,] <- rsf*avail.dist.tel[i,]
+        use.dist.tel[i,] <- use.dist.tel[i,]/sum(use.dist.tel[i,])
       }
+      #simulate u's
+      u.tel <- array(NA,dim=c(n.tel.inds,K.tel,2))
+      u.cell.tel <- matrix(NA,n.tel.inds,K.tel)
+      u.xlim.tel <- u.ylim.tel <- array(NA,dim=c(n.tel.inds,K.tel,2))
+      for(i in 1:n.tel.inds){
+        for(k in 1:K.tel){
+          # u.cell.tel[i,k] <- rcat(1,use.dist.tel[i,])
+          u.cell.tel[i,k] <- sample(1:n.cells,1,replace=TRUE,prob=use.dist.tel[i,])
+          u.xlim.tel[i,k,] <- dSS[u.cell.tel[i,k],1] + c(-res,res)/2
+          u.ylim.tel[i,k,] <- dSS[u.cell.tel[i,k],2] + c(-res,res)/2
+          u.tel[i,k,1] <- rtruncnorm(1,a=u.xlim.tel[i,k,1],b=u.xlim.tel[i,k,2],
+                                     mean=s.tel[i,1],sd=sigma)
+          u.tel[i,k,2] <- rtruncnorm(1,a=u.ylim.tel[i,k,1],b=u.ylim.tel[i,k,2],
+                                     mean=s.tel[i,2],sd=sigma)
+        }
+      }
+      image(x.vals,y.vals,matrix(rsf.cov.plot,length(x.vals),length(y.vals)),
+            main="Telemetry Individual ACs and Site Use",xlab="X",ylab="Y")
+      grid(n.cells.x,n.cells.y,lwd=1,lty=1,col="grey80")
+      for(i in 1:n.tel.inds){
+        for(k in 1:K.tel){
+          lines(x=c(s.tel[i,1],u.tel[i,k,1]),y=c(s.tel[i,2],u.tel[i,k,2]),col="black")
+        }
+      }
+      # points(u.tel[,,1],u.tel[,,2],pch=16,cex=1,col="royalblue")
+      points(u.tel[,,1],u.tel[,,2],pch=16,cex=1,col=rgb(65,105,225,100,maxColorValue=225))
+      points(s.tel[,1],s.tel[,2],pch=16,cex=1.25,col="grey30")
+      
+      n.locs.ind <- rep(K.tel,n.tel.inds)
+      n.locs.max <- max(n.locs.ind)
+    }else{
+      s.tel.cell <- NA
+      s.tel <- NA
+      u.tel <- NA
+      u.cell.tel <- NA
+      n.locs.ind <- NA
+      n.locs.max <- NA
     }
-    # points(u.tel[,,1],u.tel[,,2],pch=16,cex=1,col="royalblue")
-    points(u.tel[,,1],u.tel[,,2],pch=16,cex=1,col=rgb(65,105,225,100,maxColorValue=225))
-    points(s.tel[,1],s.tel[,2],pch=16,cex=1.25,col="grey30")
-    
-    n.locs.ind <- rep(K.tel,n.tel.inds)
-    n.locs.max <- max(n.locs.ind)
 
     #discard uncaptured inds and disaggregate data
     caught <- which(rowSums(y)>0)
@@ -203,15 +212,19 @@ sim.RY <-
     if(!all(u.check==u.obs,na.rm=TRUE))stop("Error rebuilding data. Report Bug.")
     
     constants <- list(K=K,K.tel=K.tel,xlim=xlim,ylim=ylim,dSS=dSS,res=res,cells=cells,x.vals=x.vals,y.vals=y.vals,
-                      n.tel.inds=n.tel.inds,n.locs.ind=n.locs.ind,n.samples=n.samples,
-                      InSS=InSS,n.cells=n.cells,n.cells.x=n.cells.x,n.cells.y=n.cells.y)
+                      n.tel.inds=n.tel.inds,n.locs.ind=n.locs.ind,n.samples=n.samples,survey=survey,effort=effort,
+                      InSS=InSS,n.cells=n.cells,n.cells.x=n.cells.x,n.cells.y=n.cells.y,D.cov=D.cov,rsf.cov=rsf.cov)
     truth <- list(lambda=lambda,lambda.cell=lambda.cell,rsf=rsf,N=N,s=s,u=u,s.cell=s.cell,u.cell=u.cell,
                   ID=ID,n=n,s.tel=s.tel,s.tel.cell=s.tel.cell,
                   use.dist=use.dist,avail.dist=avail.dist)
     capture <- list(y=y,u.obs=u.obs, u.cell=u.cell.obs, #known ID
                     this.k=this.k,u.obs2D=u.obs2D) #unknown ID
-    telemetry <- list(u.tel=u.tel,u.cell.tel=u.cell.tel,u.xlim.tel=u.xlim.tel,
-                      u.ylim.tel=u.ylim.tel) #observed telemetry data
+    if(n.tel.inds>0){
+      telemetry <- list(u.tel=u.tel,u.cell.tel=u.cell.tel,u.xlim.tel=u.xlim.tel,
+                        u.ylim.tel=u.ylim.tel) #observed telemetry data
+    }else{
+      telemetry <- NA
+    }
     summaries <- list(p=p,p.ik=p.ik,p.i=p.i,p.marg.ik=p.marg.ik,p.marg.i=p.marg.i,cum.p.c=cum.p.c)
     out <-list(constants=constants,truth=truth,capture=capture,telemetry=telemetry,summaries=summaries)
     return(out)

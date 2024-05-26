@@ -8,9 +8,9 @@ cols1 <- brewer.pal(9,"Greens")
 cols2 <- brewer.pal(9,"YlOrBr")
 
 #state space. Must start at (0,0)
-xlim <- c(0,300)
-ylim <- c(0,300)
-res <- 5 #resolution, cell width/height
+xlim <- c(0,100)
+ylim <- c(0,100)
+res <- 2.5 #resolution, cell width/height
 if(xlim[1]!=0|ylim[1]!=0)stop("xlim and ylim must start at 0.")
 if((diff(range(xlim))/res)%%1!=0)stop("The range of xlim must be divisible by 'res'")
 if((diff(range(ylim))/res)%%1!=0)stop("The range of ylim must be divisible by 'res'")
@@ -49,7 +49,7 @@ image(x.vals,y.vals,matrix(D.cov*InSS,n.cells.x,n.cells.y),main="D.cov",xlab="X"
 K <- 8
 #Let's implement a state space buffer and only sample inside that.
 #buffer should be at least 3sigma (which we haven't defined, yet, I use 7.8 below)
-target.sigma <- 7.5
+target.sigma <- 2
 search.buff <- 1*(dists<(rad-3*target.sigma))
 
 #but let's consider we don't survey the entire state space on each occasion
@@ -88,12 +88,12 @@ image(x.vals,y.vals,matrix(rowSums(effort),n.cells.x,n.cells.y),main="Search Eff
 effort[survey==1] <- as.numeric(scale(effort[survey==1]))
 
 
-D.beta0 <- -6.5 #baseline D
+D.beta0 <- -4.5 #baseline D
 D.beta1 <- 1.0 #density coefficient 
 rsf.beta <- 1.5 #rsf coefficient
 beta.p.int <- -0.5 #baseline detection prob
 beta.p.effort <- 2.5 #effort effect on detection prob
-sigma <- 7.5 #spatial scale of availability distribution
+sigma <- 2 #spatial scale of availability distribution
 n.tel.inds <- 10 #number of telemetry individuals
 K.tel <- 15 #number of telemetry locations per individual
 
@@ -111,7 +111,7 @@ data <- sim.RY(D.beta0=D.beta0,D.beta1=D.beta1,rsf.beta=rsf.beta,
 
 data$truth$lambda #expected abundance from D cov inputs
 data$truth$N #simulated realized abundance
-data$truth$n.cap #number of inds captured
+data$truth$n #number of inds captured
 table(rowSums(data$capture$y)) #number of inds captures X times
 
 #given search effort and use distributions, here are individuals cumulative detection probabilities
@@ -153,8 +153,9 @@ for(k in 1:K){
   surveyed.cells.effort[1:n.surveyed.cells[k],k] <- effort[surveyed.cells[1:n.surveyed.cells[k],k],k]
 }
 
-Niminits <- list(z=nimbuild$z,s=nimbuild$s,
-                 N=nimbuild$N,D.beta0=-4,D.beta1=0,
+Niminits <- list(z=nimbuild$z,N=nimbuild$N, #must init N to be sum(z.init)
+                 s=nimbuild$s,
+                 D0=sum(nimbuild$z)/(sum(InSS)*res^2),D.beta1=0,
                  sigma=inits$sigma,
                  beta.p.int=c(0),beta.p.effort=c(2),
                  rsf.beta=2,
@@ -184,7 +185,7 @@ Nimdata <- list(y=nimbuild$y,u=nimbuild$u,u.cell=nimbuild$u.cell,
 
 # set parameters to monitor
 parameters<-c('beta.p.int','beta.p.effort','rsf.beta','D.beta1',
-              'sigma','N','D.beta0','lambda')
+              'sigma','N','D0','lambda')
 
 #can also monitor a different set of parameters with a different thinning rate
 nt <- 2 #thinning rate
@@ -193,7 +194,7 @@ nt <- 2 #thinning rate
 start.time<-Sys.time()
 Rmodel <- nimbleModel(code=NimModel, constants=constants, data=Nimdata,check=FALSE,inits=Niminits)
 #tell nimble which nodes to configure so we don't waste time for samplers we will replace below
-config.nodes <- c("beta.p.int","sigma",'D.beta0','D.beta1','rsf.beta','beta.p.effort')
+config.nodes <- c("beta.p.int","sigma",'D0','D.beta1','rsf.beta','beta.p.effort')
 conf <- configureMCMC(Rmodel,monitors=parameters, thin=nt,useConjugacy = FALSE,
                       nodes=config.nodes) 
 
@@ -234,7 +235,7 @@ for(i in 1:data$constants$n.tel.inds){
                                                               calcNodes.s.tel=calcNodes.s.tel), silent = TRUE)
 }
 
-conf$addSampler(target = c("D.beta0","D.beta1"),
+conf$addSampler(target = c("D0","D.beta1"),
                 type = 'RW_block',control=list(adaptive=TRUE),silent = TRUE)
 
 # Build and compile
