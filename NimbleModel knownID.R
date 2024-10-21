@@ -56,7 +56,7 @@ NimModel <- nimbleCode({
       #observation likelihood
       #for detections, use detection likelihood conditional on cell of detection
       #for nondetections, marginalize detection over unobserved site use, u.cell, marginal prob(not detected). trimmed
-      y[i,k] ~ dRYmarg(u.cell=u.cell[i,k],sigma=sigma,z=z[i],p=p[1:n.surveyed.cells[k],k],
+      y[i,k] ~ dRYmarg(u.cell=u.cell[i,k],sigma=sigma,z=z[i],p=p[1:n.surveyed.cells[k],k],survey=survey[1:n.cells,k],
                             surveyed.cells=surveyed.cells[1:n.surveyed.cells[k],k],n.surveyed.cells=n.surveyed.cells[k],
                             use.dist=use.dist[i,1:n.cells],
                             pos.cells=pos.cells[i,1:n.cells],n.pos.cells=n.pos.cells[i],n.cells=n.cells,
@@ -71,7 +71,7 @@ NimModel <- nimbleCode({
   for(i in 1:n.tel.inds){
     s.tel[i,1] ~ dunif(xlim[1],xlim[2])
     s.tel[i,2] ~ dunif(ylim[1],ylim[2])
-    #can use telemetry data to inform D cov estimation, assumes inds captured at random wrt to response to covs
+    #can use telemetry data to inform D cov estimation, assumes inds captured at random wrt to expected D
     s.cell.tel[i] <- cells[trunc(s.tel[i,1]/res)+1,trunc(s.tel[i,2]/res)+1] #extract activity center cell
     dummy.data.tel[i] ~ dCell(pi.cell[s.cell.tel[i]])
     #Individual available distributions - bivariate Normal centered on activity center.

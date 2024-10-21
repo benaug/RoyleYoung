@@ -170,7 +170,7 @@ constants <- list(M=M,K=K,
                   n.locs.ind=data$constants$n.locs.ind,n.tel.inds=data$constants$n.tel.inds,
                   D.cov=D.cov,
                   cellArea=data$constants$res^2,surveyed.cells=surveyed.cells,n.surveyed.cells=n.surveyed.cells,
-                  surveyed.cells.effort=surveyed.cells.effort,
+                  surveyed.cells.effort=surveyed.cells.effort,survey=survey,
                   u.xlim.tel=data$telemetry$u.xlim.tel,
                   u.ylim.tel=data$telemetry$u.ylim.tel)
 
@@ -246,7 +246,7 @@ Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 
 # Run the model.
 start.time2<-Sys.time()
-Cmcmc$run(1000,reset=FALSE) #can keep running this line to extend sampler
+Cmcmc$run(1500,reset=FALSE) #can keep running this line to extend sampler
 end.time<-Sys.time()
 end.time-start.time  # total time for compilation, replacing samplers, and fitting
 end.time-start.time2 # post-compilation run time

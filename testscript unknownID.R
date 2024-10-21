@@ -217,7 +217,7 @@ constants <- list(M=M,K=K,n.samples=n.samples,
                   x.vals=data$constants$x.vals,y.vals=data$constants$y.vals,
                   xlim=data$constants$xlim,ylim=data$constants$ylim,
                   n.locs.ind=data$constants$n.locs.ind,n.tel.inds=data$constants$n.tel.inds,
-                  D.cov=D.cov,
+                  D.cov=D.cov,survey=survey,
                   cellArea=data$constants$res^2,surveyed.cells=surveyed.cells,n.surveyed.cells=n.surveyed.cells,
                   surveyed.cells.effort=surveyed.cells.effort,
                   u.xlim.tel=data$telemetry$u.xlim.tel,
@@ -256,9 +256,13 @@ calcNodes.y.true <- Rmodel$getDependencies("y.true")
 calcNodes.u <- Rmodel$getDependencies("u")
 calcNodes.all <- c(calcNodes.y.true,calcNodes.u)
 map <- t(matrix(1:(M*K),K,M)) #map 2D node reference to 1D node vector calcNodes.y.true
+u.obs.cell <- rep(NA,n.samples)
+for(i in 1:n.samples){
+  u.obs.cell[i] <- getCellR(data$capture$u.obs2D[i,],data$constants$res,data$constants$cells,xlim,ylim)
+}
 conf$addSampler(target = paste0("y.true[1:",M,",1:",K,"]"),
                 type = 'IDSampler',control = list(M=M,K=K,n.samples=nimbuild$n.samples,
-                                                  u.obs=data$capture$u.obs2D,map=map,
+                                                  u.obs.cell=u.obs.cell,map=map,
                                                   this.k=nimbuild$this.k,
                                                   calcNodes.y.true=calcNodes.y.true,
                                                   calcNodes.u=calcNodes.u,
@@ -313,14 +317,14 @@ Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 
 # Run the model.
 start.time2 <- Sys.time()
-Cmcmc$run(5000,reset=FALSE) #can keep running this line to extend sampler
+Cmcmc$run(500,reset=FALSE) #can keep running this line to extend sampler
 end.time <- Sys.time()
 end.time - start.time  # total time for compilation, replacing samplers, and fitting
 end.time - start.time2 # post-compilation run time
 
 library(coda)
 mvSamples <- as.matrix(Cmcmc$mvSamples)
-plot(mcmc(mvSamples[210:nrow(mvSamples),])) #discarding some burnin here. Can't plot 1st sample which is all NA
+plot(mcmc(mvSamples[25:nrow(mvSamples),])) #discarding some burnin here. Can't plot 1st sample which is all NA
 
 data$truth$lambda #target expected abundance
 data$truth$N #target realized abundance

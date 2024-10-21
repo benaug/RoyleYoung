@@ -33,7 +33,7 @@ ruInCell <- nimbleFunction(
 
 dRYmarg <- nimbleFunction(
   run = function(x = double(0),u.cell=double(0),z = integer(0), p = double(1),
-                 sigma = double(0),use.dist = double(1),
+                 sigma = double(0),use.dist = double(1), survey = double(1),
                  surveyed.cells = double(1), n.surveyed.cells = integer(0),
                  pos.cells = double(1),n.pos.cells = integer(0),n.cells = integer(0),
                  res=double(0), log = integer(0)) {
@@ -48,23 +48,28 @@ dRYmarg <- nimbleFunction(
         logProb <- log(this.p) + #log(p) faster than dbinom
           log(use.dist[u.cell]) #RSF cell use likelihood
       }else{#unobserved u's
-        #only sum over relevant pos cells
-        logProb.tmp <- rep(-Inf,n.cells)
-        for(c in 1:n.pos.cells){ #start with use component
-          this.cell <- pos.cells[c]
-          logProb.tmp[this.cell] <- log(use.dist[this.cell]) #inefficient to be logging the use distribution for every k
+        overlap <- sum(survey[pos.cells[1:n.pos.cells]])>0
+        if(overlap){ #if there is non-negligible overlap between this individuals use cells and survey effort on this occasion
+          #only sum over relevant pos cells
+          logProb.tmp <- rep(-Inf,n.cells)
+          for(c in 1:n.pos.cells){ #start with use component
+            this.cell <- pos.cells[c]
+            logProb.tmp[this.cell] <- log(use.dist[this.cell]) #inefficient to be logging the use distribution for every k
+          }
+          for(c in 1:n.surveyed.cells){ #add detection component
+            this.cell <- surveyed.cells[c]
+            logProb.tmp[this.cell] <- logProb.tmp[this.cell] + log(1-p[c])
+          }
+          #keep use pos.cells only for remaining calculations
+          logProb.tmp.reduced <- rep(0,n.pos.cells)
+          for(c in 1:n.pos.cells){
+            logProb.tmp.reduced[c] <- logProb.tmp[pos.cells[c]]
+          }
+          maxlp <- max(logProb.tmp.reduced)
+          logProb <- log(sum(exp(logProb.tmp.reduced-maxlp)))+maxlp
+        }else{ #if no overlap of individual site use and survey effort on this occasion
+          logProb <- 0
         }
-        for(c in 1:n.surveyed.cells){ #add detection component
-          this.cell <- surveyed.cells[c]
-          logProb.tmp[this.cell] <- logProb.tmp[this.cell] + log(1-p[c])
-        }
-        #keep use pos.cells only for remaining calculations
-        logProb.tmp.reduced <- rep(0,n.pos.cells)
-        for(c in 1:n.pos.cells){
-          logProb.tmp.reduced[c] <- logProb.tmp[pos.cells[c]]
-        }
-        maxlp <- max(logProb.tmp.reduced)
-        logProb <- log(sum(exp(logProb.tmp.reduced-maxlp)))+maxlp
       }
     }else{#if z=0, we just integrate the use distribution giving us a logProb of 0
       logProb <- 0
@@ -76,7 +81,7 @@ dRYmarg <- nimbleFunction(
 #dummy RNG to make nimble happy
 rRYmarg <- nimbleFunction(
   run = function(n = integer(0),u.cell=double(0),z = integer(0), p = double(1),
-                 sigma = double(0), use.dist = double(1),
+                 sigma = double(0), use.dist = double(1), survey = double(1),
                  surveyed.cells = double(1), n.surveyed.cells = integer(0),
                  pos.cells = double(1),n.pos.cells = integer(0),n.cells = integer(0),
                  res=double(0)) {
@@ -372,7 +377,8 @@ IDSampler <- nimbleFunction(
     K <- control$K
     n.samples <- control$n.samples
     this.k <- control$this.k
-    u.obs <- control$u.obs
+    # u.obs <- control$u.obs
+    u.obs.cell <- control$u.obs.cell
     map <- control$map
     calcNodes.y.true <- control$calcNodes.y.true
     calcNodes.u <- control$calcNodes.u
@@ -384,13 +390,16 @@ IDSampler <- nimbleFunction(
     sigma <- model$sigma[1]
     z.on <- z==1 #precalculate
     for(l in 1:n.samples){ #propose for each sample l one at a time
-      propprobs <- rep(0,M)
-      for(i in 1:M){
-        if(z.on[i]){#only need to consider inds in population
-          dist <- sqrt((s[i,1]-u.obs[l,1])^2+(s[i,2]-u.obs[l,2])^2)
-          propprobs[i] <- exp(-dist^2/(2*sigma^2))
-        }
-      }
+      # propprobs <- rep(0,M)
+      # for(i in 1:M){
+      #   if(z.on[i]){#only need to consider inds in population
+      #     dist <- sqrt((s[i,1]-u.obs[l,1])^2+(s[i,2]-u.obs[l,2])^2)
+      #     propprobs[i] <- exp(-dist^2/(2*sigma^2))
+      #   }
+      # }
+      # propprobs <- propprobs/sum(propprobs)
+      #this is faster
+      propprobs <- model$use.dist[,u.obs.cell[l]]*z.on
       propprobs <- propprobs/sum(propprobs)
       pick <- rcat(1,prob=propprobs)
       if(model$ID[l]!=pick){ #skip if propose same ID.

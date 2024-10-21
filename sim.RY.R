@@ -190,6 +190,8 @@ sim.RY <-
     # s.full <- s
     s <- s[caught,]
     s.cell <- s.cell[caught]
+    avail.dist <- avail.dist[caught,]
+    use.dist <- use.dist[caught,]
     
     tmp <- which(y==1,arr.ind=TRUE)
     ID <- tmp[,1]
