@@ -60,7 +60,7 @@ dRYmarg <- nimbleFunction(
             this.cell <- surveyed.cells[c]
             logProb.tmp[this.cell] <- logProb.tmp[this.cell] + log(1-p[c])
           }
-          #keep use pos.cells only for remaining calculations
+          #use pos.cells only for remaining calculations
           logProb.tmp.reduced <- rep(0,n.pos.cells)
           for(c in 1:n.pos.cells){
             logProb.tmp.reduced[c] <- logProb.tmp[pos.cells[c]]
@@ -187,7 +187,7 @@ getPosCells <- nimbleFunction(
     idx <- 1
     for(c in 1:n.cells){
       #sets level of trimming used to get use distribution and calculate y marginal logprobs
-      if(avail.dist[c]>1e-7){ #not effectively zero
+      if(avail.dist[c]>1e-5){ #not effectively zero
         pos.cells[idx] <- c
         idx <- idx + 1
       }

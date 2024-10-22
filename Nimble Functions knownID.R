@@ -187,7 +187,7 @@ getPosCells <- nimbleFunction(
     idx <- 1
     for(c in 1:n.cells){
       #sets level of trimming used to get use distribution and calculate y marginal logprobs
-      if(avail.dist[c]>1e-7){ #not effectively zero
+      if(avail.dist[c]>1e-5){ #not effectively zero
         pos.cells[idx] <- c
         idx <- idx + 1
       }
