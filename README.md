@@ -5,7 +5,7 @@ Must have nimble installed, even to simulate data. Must have RTools installed to
 
 Disclaimer: I have tested recent versions of this model, but not this one exactly. No indications of bugs, but will remove this when tested more thoroughly.
 
-These models use count prior data augmentation: https://github.com/benaug/SCR-Count-Prior-Data-Augmentation
+These models use N-prior data augmentation: https://github.com/benaug/SCR-N-Prior-Data-Augmentation
 
 Royle-Young paper:
 https://esajournals.onlinelibrary.wiley.com/doi/full/10.1890/07-0601.1
