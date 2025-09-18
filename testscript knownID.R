@@ -25,15 +25,19 @@ n.cells.y <- length(y.vals)
 
 #simulate a D.cov, higher cov.pars for large scale cov
 set.seed(1320562)
-library(geoR)
-D.cov <- grf(n.cells,grid=dSS,cov.pars=c(25,25),messages=FALSE)[[2]]
+library(fields)
+set.seed(1)
+grid <- list(x=x.vals,y=y.vals) 
+obj <- Exp.image.cov(grid=grid,aRange=20,setup=TRUE)
+D.cov <- sim.rf(obj)
 D.cov <- as.numeric(scale(D.cov)) #scale
 par(mfrow=c(1,1),ask=FALSE)
 image(x.vals,y.vals,matrix(D.cov,n.cells.x,n.cells.y),main="D.cov",xlab="X",ylab="Y",col=cols1)
 
 #simulate an rsf cov, lower cov.pars for finer scale cov
 set.seed(24674345)
-rsf.cov <- grf(n.cells,grid=dSS,cov.pars=c(5,5),messages=FALSE)[[2]]
+obj <- Exp.image.cov(grid=grid,aRange=10,setup=TRUE)
+rsf.cov <- sim.rf(obj)
 rsf.cov <- as.numeric(scale(rsf.cov)) #scale
 image(x.vals,y.vals,matrix(rsf.cov,n.cells.x,n.cells.y),main="rsf.cov",xlab="X",ylab="Y",col=cols1)
 
@@ -70,7 +74,8 @@ idx.list[[8]] <- idx.list[[4]]
 set.seed(3356735)
 effort <- survey <- matrix(0,n.cells,K)
 for(k in 1:K){
-  tmp <- grf(n.cells,grid=dSS,cov.pars=c(15,15),nugget=1,messages=FALSE)[[2]]
+  obj <- Exp.image.cov(grid=grid,aRange=5,setup=TRUE)
+  tmp <- sim.rf(obj)
   effort[idx.list[[k]],k] <- tmp[idx.list[[k]]]
   survey[idx.list[[k]],k] <- 1
 }

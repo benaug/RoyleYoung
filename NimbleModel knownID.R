@@ -17,11 +17,9 @@ NimModel <- nimbleCode({
   #Density model
   D.intercept <- D0*cellArea
   # D.intercept <- exp(D.beta0)*cellArea
-  for(c in 1:n.cells){
-    #multiplying by InSS=0 prevents activity centers from living there, InSS=1 otherwise
-    lambda.cell[c] <- InSS[c]*exp(D.beta1*D.cov[c]) #separate this component so s's do not depend on D.intercept
-    # lambda.cell[c] <- InSS[c] #if no Dcov, this gives homogeneous D
-  }
+  #multiplying by InSS=0 prevents activity centers from living there, InSS=1 otherwise
+  lambda.cell[1:n.cells] <- InSS[1:n.cells]*exp(D.beta1*D.cov[1:n.cells]) #separate this component so s's do not depend on D.intercept
+  # lambda.cell[1:n.cells] <- InSS[1:n.cells] #if no Dcov, this gives homogeneous D
   pi.cell[1:n.cells] <- lambda.cell[1:n.cells]/pi.denom #expected proportion of total N in cell c
   pi.denom <- sum(lambda.cell[1:n.cells])
   lambda <- D.intercept*pi.denom #Expected N
