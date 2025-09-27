@@ -40,7 +40,7 @@ init.data.RY.knownID <- function(data=NA,M=NA,inits=NA){
   }
   #move any initialized outside state space
   for(i in 1:M){
-    s.cell.init <- getCellR(s.init[i,],res,cells,xlim,ylim)
+    s.cell.init <- getCellR(s.init[i,],data$res,cells,xlim,ylim)
     if(InSS[s.cell.init]==0){#not in SS, move to nearest cell
       dists <- sqrt((dSS[s.cell.init,1]-dSS[,1])^2+(dSS[s.cell.init,2]-dSS[,2])^2)
       dists[InSS==0] <- Inf
