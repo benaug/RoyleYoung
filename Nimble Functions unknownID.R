@@ -1,3 +1,54 @@
+dTruncNormVector <- nimbleFunction(
+  run = function(x = double(2), s = double(1), sigma = double(0), u.xlim = double(2), u.ylim = double(2), n.locs.ind = double(0), log = integer(0)) {
+    returnType(double(0))
+    if(n.locs.ind>0){
+      prob.x <- rep(0,n.locs.ind)
+      prob.y <- rep(0,n.locs.ind)
+      pnorm.lower.x <- rep(0,n.locs.ind)
+      pnorm.upper.x <- rep(0,n.locs.ind)
+      pnorm.lower.y <- rep(0,n.locs.ind)
+      pnorm.upper.y <- rep(0,n.locs.ind)
+      for(i in 1:n.locs.ind){
+        prob.x[i] <- dnorm(x[i,1],s[1],sd=sigma)
+        prob.y[i] <- dnorm(x[i,2],s[2],sd=sigma)
+        pnorm.lower.x[i] <- pnorm(u.xlim[i,1],s[1],sigma)
+        pnorm.upper.x[i] <- pnorm(u.xlim[i,2],s[1],sigma)
+        pnorm.lower.y[i] <- pnorm(u.ylim[i,1],s[2],sigma)
+        pnorm.upper.y[i] <- pnorm(u.ylim[i,2],s[2],sigma)
+      }
+      logProb <- sum(log(prob.x/(pnorm.upper.x-pnorm.lower.x))) +
+        sum(log(prob.y/(pnorm.upper.y-pnorm.lower.y)))
+    }else{
+      logProb <- 0
+    }
+    return(logProb)
+  }
+)
+
+rTruncNormVector <- nimbleFunction(
+  run = function(n = integer(0), s = double(1), sigma = double(0), u.xlim = double(2), u.ylim = double(2), n.locs.ind = double(0)) {
+    returnType(double(2))
+    return(matrix(0,n.locs.ind,2))
+  }
+)
+
+dCatVector <- nimbleFunction(
+  run = function(x = double(1), use.dist = double(1), n.locs.ind = double(0), log = integer(0)) {
+    returnType(double(0))
+    logProb <- 0
+    for(i in 1:n.locs.ind){
+      logProb <- logProb + log(use.dist[x[i]])
+    }
+    return(logProb)
+  }
+)
+rCatVector <- nimbleFunction(
+  run = function(n = integer(0),use.dist = double(1), n.locs.ind = double(0)) {
+    returnType(double(1))
+    return(rep(0,n.locs.ind))
+  }
+)
+
 duInCell <- nimbleFunction(
   run = function(x = double(1), s = double(1), u.cell = double(0),
                  sigma = double(0),n.cells.x = integer(0),res=double(0),

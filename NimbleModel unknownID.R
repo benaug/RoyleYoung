@@ -77,12 +77,16 @@ NimModel <- nimbleCode({
                                             y.vals=y.vals[1:n.cells.y],n.cells.x=n.cells.x,n.cells.y=n.cells.y)
     #Individual use distributions - multiply rsf and available distribution, normalize. not trimmed
     use.dist.tel[i,1:n.cells] <- getUseTel(rsf=rsf[1:n.cells],avail=avail.dist.tel[i,1:n.cells])
-    for(k in 1:n.locs.ind[i]){
-      u.cell.tel[i,k] ~ dcat(use.dist.tel[i,1:n.cells]) #likelihood of this cell being used
-      #continuous use location likelihood conditioned on the cell
-      u.tel[i,k,1] ~ T(dnorm(s.tel[i,1],sd=sigma),u.xlim.tel[i,k,1],u.xlim.tel[i,k,2])
-      u.tel[i,k,2] ~ T(dnorm(s.tel[i,2],sd=sigma),u.ylim.tel[i,k,1],u.ylim.tel[i,k,2])
-    }
+    u.cell.tel[i,1:n.locs.ind[i]] ~ dCatVector(use.dist.tel[i,1:n.cells],n.locs.ind=n.locs.ind[i])
+    u.tel[i,1:n.locs.ind[i],1:2] ~ dTruncNormVector(s=s.tel[i,1:2],sigma=sigma,n.locs.ind=n.locs.ind[i],
+                                                    u.xlim=u.xlim.tel[i,1:n.locs.ind[i],1:2],
+                                                    u.ylim=u.ylim.tel[i,1:n.locs.ind[i],1:2])
+    # for(k in 1:n.locs.ind[i]){
+    #   u.cell.tel[i,k] ~ dcat(use.dist.tel[i,1:n.cells]) #likelihood of this cell being used
+    #   #continuous use location likelihood conditioned on the cell
+    #   u.tel[i,k,1] ~ T(dnorm(s.tel[i,1],sd=sigma),u.xlim.tel[i,k,1],u.xlim.tel[i,k,2])
+    #   u.tel[i,k,2] ~ T(dnorm(s.tel[i,2],sd=sigma),u.ylim.tel[i,k,1],u.ylim.tel[i,k,2])
+    # }
   }
   #latent ID derived variables
   #number of detections per individual
