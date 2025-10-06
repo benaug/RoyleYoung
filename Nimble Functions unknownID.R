@@ -331,27 +331,30 @@ zSampler <- nimbleFunction(
     z.nodes <- control$z.nodes
     calcNodes <- control$calcNodes
   },
-  run = function() {
+  run = function(){
     MK <- M*K #can precalculate, or supply via control.
+    n.det <- model$n[1] #need for proposal probs
+    ind.detected <- model$capcounts>0
     for(up in 1:z.ups){ #how many updates per iteration?
       #propose to add/subtract 1
       updown <- rbinom(1,1,0.5) #p=0.5 is symmetric. If you change this, must account for asymmetric proposal
       reject <- FALSE #we auto reject if you select a detected call
-      if(updown==0){#subtract
+      if(updown==0){ #subtract
         #find all z's currently on
-        z.on <- which(model$z==1)
+        # z.on <- which(model$z==1)
+        z.on <- which(model$z==1 & ind.detected==0) #exclude guys with detections
         n.z.on <- length(z.on)
-        pick <- rcat(1,rep(1/n.z.on,n.z.on)) #select one of these individuals
-        pick <- z.on[pick]
-        #prereject turning off individuals currently allocated samples
-        if(model$capcounts[pick]>0){#is this an individual with samples?
+        if(n.z.on==0){
           reject <- TRUE
         }
         if(!reject){
+          pick <- rcat(1,rep(1/n.z.on,n.z.on)) #select one of these individuals
+          pick <- z.on[pick]
           pick.idx <- seq(pick,MK,M) #used to reference correct y nodes
           #get initial logprobs for N and y
           lp.initial.N <- model$getLogProb(N.node)
           lp.initial.y <- model$getLogProb(y.nodes[pick.idx])
+          N.initial <- model$N[1]
           
           #propose new N/z
           model$N[1] <<-  model$N[1] - 1
@@ -362,9 +365,9 @@ zSampler <- nimbleFunction(
           lp.proposed.y <- model$calculate(y.nodes[pick.idx]) #will always be 0
           
           #MH step
-          log_MH_ratio <- (lp.proposed.N + lp.proposed.y) - (lp.initial.N + lp.initial.y)
+          log_MH_ratio <- (lp.proposed.N + lp.proposed.y) - (lp.initial.N + lp.initial.y) +
+            log(N.initial - n.det) - log(N.initial)
           accept <- decide(log_MH_ratio)
-          
           if(accept) {
             mvSaved["N",1][1] <<- model[["N"]]
             mvSaved["z",1][pick] <<- model[["z"]][pick]
@@ -385,6 +388,7 @@ zSampler <- nimbleFunction(
           #get initial logprobs for N and y
           lp.initial.N <- model$getLogProb(N.node)
           lp.initial.y <- model$getLogProb(y.nodes[pick.idx]) #will always be 0
+          N.initial <- model$N[1]
           
           #propose new N/z
           model$N[1] <<-  model$N[1] + 1
@@ -395,7 +399,8 @@ zSampler <- nimbleFunction(
           lp.proposed.y <- model$calculate(y.nodes[pick.idx])
           
           #MH step
-          log_MH_ratio <- (lp.proposed.N + lp.proposed.y) - (lp.initial.N + lp.initial.y)
+          log_MH_ratio <- (lp.proposed.N + lp.proposed.y) - (lp.initial.N + lp.initial.y) + 
+            log(N.initial + 1) - log(N.initial + 1 - n.det)
           accept <- decide(log_MH_ratio)
           if(accept) {
             mvSaved["N",1][1] <<- model[["N"]]
@@ -414,6 +419,102 @@ zSampler <- nimbleFunction(
   },
   methods = list( reset = function () {} )
 )
+
+#original, slightly less efficient zSampler
+# zSampler <- nimbleFunction(
+#   contains = sampler_BASE,
+#   setup = function(model, mvSaved, target, control) {
+#     M <- control$M
+#     K <- control$K
+#     z.ups <- control$z.ups
+#     y.nodes <- control$y.nodes
+#     N.node <- control$N.node
+#     z.nodes <- control$z.nodes
+#     calcNodes <- control$calcNodes
+#   },
+#   run = function() {
+#     MK <- M*K #can precalculate, or supply via control.
+#     for(up in 1:z.ups){ #how many updates per iteration?
+#       #propose to add/subtract 1
+#       updown <- rbinom(1,1,0.5) #p=0.5 is symmetric. If you change this, must account for asymmetric proposal
+#       reject <- FALSE #we auto reject if you select a detected call
+#       if(updown==0){#subtract
+#         #find all z's currently on
+#         z.on <- which(model$z==1)
+#         n.z.on <- length(z.on)
+#         pick <- rcat(1,rep(1/n.z.on,n.z.on)) #select one of these individuals
+#         pick <- z.on[pick]
+#         #prereject turning off individuals currently allocated samples
+#         if(model$capcounts[pick]>0){#is this an individual with samples?
+#           reject <- TRUE
+#         }
+#         if(!reject){
+#           pick.idx <- seq(pick,MK,M) #used to reference correct y nodes
+#           #get initial logprobs for N and y
+#           lp.initial.N <- model$getLogProb(N.node)
+#           lp.initial.y <- model$getLogProb(y.nodes[pick.idx])
+#           
+#           #propose new N/z
+#           model$N[1] <<-  model$N[1] - 1
+#           model$z[pick] <<- 0
+#           
+#           #get proposed logprobs for N and y
+#           lp.proposed.N <- model$calculate(N.node)
+#           lp.proposed.y <- model$calculate(y.nodes[pick.idx]) #will always be 0
+#           
+#           #MH step
+#           log_MH_ratio <- (lp.proposed.N + lp.proposed.y) - (lp.initial.N + lp.initial.y)
+#           accept <- decide(log_MH_ratio)
+#           
+#           if(accept) {
+#             mvSaved["N",1][1] <<- model[["N"]]
+#             mvSaved["z",1][pick] <<- model[["z"]][pick]
+#           }else{
+#             model[["N"]] <<- mvSaved["N",1][1]
+#             model[["z"]][pick] <<- mvSaved["z",1][pick]
+#             model$calculate(y.nodes[pick.idx])
+#             model$calculate(N.node)
+#           }
+#         }
+#       }else{#add
+#         if(model$N[1] < M){ #cannot update if z maxed out. Need to raise M
+#           z.off <- which(model$z==0)
+#           n.z.off <- length(z.off)
+#           pick <- rcat(1,rep(1/n.z.off,n.z.off)) #select one of these individuals
+#           pick <- z.off[pick]
+#           pick.idx <- seq(pick,MK,M) #used to reference correct y nodes
+#           #get initial logprobs for N and y
+#           lp.initial.N <- model$getLogProb(N.node)
+#           lp.initial.y <- model$getLogProb(y.nodes[pick.idx]) #will always be 0
+#           
+#           #propose new N/z
+#           model$N[1] <<-  model$N[1] + 1
+#           model$z[pick] <<- 1
+#           
+#           #get proposed logprobs for N and y
+#           lp.proposed.N <- model$calculate(N.node)
+#           lp.proposed.y <- model$calculate(y.nodes[pick.idx])
+#           
+#           #MH step
+#           log_MH_ratio <- (lp.proposed.N + lp.proposed.y) - (lp.initial.N + lp.initial.y)
+#           accept <- decide(log_MH_ratio)
+#           if(accept) {
+#             mvSaved["N",1][1] <<- model[["N"]]
+#             mvSaved["z",1][pick] <<- model[["z"]][pick]
+#           }else{
+#             model[["N"]] <<- mvSaved["N",1][1]
+#             model[["z"]][pick] <<- mvSaved["z",1][pick]
+#             model$calculate(y.nodes[pick.idx])
+#             model$calculate(N.node)
+#           }
+#         }
+#       }
+#     }
+#     #copy back to mySaved to update logProbs which was not done above
+#     copy(from = model, to = mvSaved, row = 1, nodes = calcNodes, logProb = TRUE)
+#   },
+#   methods = list( reset = function () {} )
+# )
 
 IDSampler <- nimbleFunction(
   contains = sampler_BASE,
