@@ -83,7 +83,9 @@ ruInCell <- nimbleFunction(
   })
 
 dRYmarg <- nimbleFunction(
-  run = function(x = double(0),u.cell=double(0),z = integer(0), p = double(1),
+  run = function(x = double(0),u.cell=double(0),
+                 u.cell.survey=double(0),survey.map=double(1),
+                 z = integer(0), p = double(1),
                  sigma = double(0),use.dist = double(1), survey = double(1),
                  surveyed.cells = double(1), n.surveyed.cells = integer(0),
                  pos.cells = double(1),n.pos.cells = integer(0),n.cells = integer(0),
@@ -92,10 +94,9 @@ dRYmarg <- nimbleFunction(
     if(z==1){
       #calculate occasion-level likelihood marginalized over u
       if(x==1){#If we observed a u...
-        idx <- which(surveyed.cells==u.cell)[1]
-        this.p <- p[idx]
-        #obsmod
-        # logProb <- dbinom(1,1,this.p,log=TRUE) + 
+        # idx <- which(surveyed.cells==u.cell)[1]
+        # this.p <- p[idx]
+        this.p <- p[u.cell.survey]
         logProb <- log(this.p) + #log(p) faster than dbinom
           log(use.dist[u.cell]) #RSF cell use likelihood
       }else{#unobserved u's
@@ -105,13 +106,13 @@ dRYmarg <- nimbleFunction(
           logProb.tmp <- rep(-Inf,n.cells)
           for(c in 1:n.pos.cells){ #start with use component
             this.cell <- pos.cells[c]
-            logProb.tmp[this.cell] <- log(use.dist[this.cell]) #inefficient to be logging the use distribution for every k
+             if(survey.map[this.cell]==0){ #cell not surveyed
+                logProb.tmp[this.cell] <- log(use.dist[this.cell])
+              }else{ #cell surveyed
+                logProb.tmp[this.cell] <- log(use.dist[this.cell]) + log(1-p[survey.map[this.cell]])
+              }
           }
-          for(c in 1:n.surveyed.cells){ #add detection component
-            this.cell <- surveyed.cells[c]
-            logProb.tmp[this.cell] <- logProb.tmp[this.cell] + log(1-p[c])
-          }
-          #keep use pos.cells only for remaining calculations
+          #use pos.cells only for remaining calculations
           logProb.tmp.reduced <- rep(0,n.pos.cells)
           for(c in 1:n.pos.cells){
             logProb.tmp.reduced[c] <- logProb.tmp[pos.cells[c]]
@@ -131,7 +132,9 @@ dRYmarg <- nimbleFunction(
 
 #dummy RNG to make nimble happy
 rRYmarg <- nimbleFunction(
-  run = function(n = integer(0),u.cell=double(0),z = integer(0), p = double(1),
+  run = function(n = integer(0),u.cell=double(0),
+                 u.cell.survey=double(0),survey.map=double(1),
+                 z = integer(0), p = double(1),
                  sigma = double(0), use.dist = double(1), survey = double(1),
                  surveyed.cells = double(1), n.surveyed.cells = integer(0),
                  pos.cells = double(1),n.pos.cells = integer(0),n.cells = integer(0),

@@ -163,7 +163,6 @@ for(l in 1:n.samples){
         y=c(data$u.obs[l,2],nimbuild$s[nimbuild$ID[l],2]))
 }
 
-
 n.surveyed.cells <- colSums(survey)
 max.surveyed.cells <- max(n.surveyed.cells)
 surveyed.cells <- matrix(0,max.surveyed.cells,K)
@@ -171,6 +170,18 @@ surveyed.cells.effort <- matrix(0,max.surveyed.cells,K)
 for(k in 1:K){
   surveyed.cells[1:n.surveyed.cells[k],k] <- which(survey[,k]==1)
   surveyed.cells.effort[1:n.surveyed.cells[k],k] <- effort[surveyed.cells[1:n.surveyed.cells[k],k],k]
+}
+
+#map specific u.cell to surveyed cells- I do this for known ID,
+#not doing for unknown ID because i index of u.cell changes
+
+#map all surveyed cells to true cells
+survey.map <- matrix(0,n.cells,K)
+for(k in 1:K){
+  for(c in 1:n.surveyed.cells[k]){
+    tmp <- surveyed.cells[c,k]
+    survey.map[tmp,k] <- c
+  }
 }
 
 #GPS locs
@@ -216,7 +227,7 @@ Niminits <- list(z=nimbuild$z,N=nimbuild$N, #must init N to be sum(z.init)
                  s.tel=apply(data$telemetry$u.tel,c(1,3),mean,na.rm=TRUE))
 
 #constants for Nimble
-constants <- list(M=M,K=K,n.samples=n.samples,
+constants <- list(M=M,K=K,n.samples=n.samples,survey.map=survey.map,
                   n.cells=data$constants$n.cells,n.cells.x=data$constants$n.cells.x,
                   n.cells.y=data$constants$n.cells.y,res=data$constants$res,
                   x.vals=data$constants$x.vals,y.vals=data$constants$y.vals,
@@ -322,14 +333,14 @@ Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 
 # Run the model.
 start.time2 <- Sys.time()
-Cmcmc$run(500,reset=FALSE) #can keep running this line to extend sampler
+Cmcmc$run(1000,reset=FALSE) #can keep running this line to extend sampler
 end.time <- Sys.time()
 end.time - start.time  # total time for compilation, replacing samplers, and fitting
 end.time - start.time2 # post-compilation run time
 
 library(coda)
 mvSamples <- as.matrix(Cmcmc$mvSamples)
-plot(mcmc(mvSamples[25:nrow(mvSamples),])) #discarding some burnin here. Can't plot 1st sample which is all NA
+plot(mcmc(mvSamples[100:nrow(mvSamples),])) #discarding some burnin here. Can't plot 1st sample which is all NA
 
 data$truth$lambda #target expected abundance
 data$truth$N #target realized abundance

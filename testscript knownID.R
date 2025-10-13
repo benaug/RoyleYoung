@@ -158,6 +158,28 @@ for(k in 1:K){
   surveyed.cells.effort[1:n.surveyed.cells[k],k] <- effort[surveyed.cells[1:n.surveyed.cells[k],k],k]
 }
 
+#map specific u.cell to surveyed cells
+n.cap <- nrow(data$capture$y)
+u.cell.survey <- nimbuild$u.cell
+for(i in 1:n.cap){
+  for(k in 1:K){
+    if(u.cell.survey[i,k]>0){
+      u.cell.survey[i,k] <- which(surveyed.cells[,k]==u.cell.survey[i,k])
+    }
+  }
+}
+all(u.cell.survey[nimbuild$u.cell!=0]>0)
+all(nimbuild$u.cell[u.cell.survey!=0]>0)
+
+#map all surveyed cells to true cells
+survey.map <- matrix(0,n.cells,K)
+for(k in 1:K){
+  for(c in 1:n.surveyed.cells[k]){
+    tmp <- surveyed.cells[c,k]
+    survey.map[tmp,k] <- c
+  }
+}
+
 Niminits <- list(z=nimbuild$z,N=nimbuild$N, #must init N to be sum(z.init)
                  s=nimbuild$s,
                  D0=sum(nimbuild$z)/(sum(InSS)*res^2),D.beta1=0,
@@ -167,7 +189,7 @@ Niminits <- list(z=nimbuild$z,N=nimbuild$N, #must init N to be sum(z.init)
                  s.tel=apply(data$telemetry$u.tel,c(1,3),mean,na.rm=TRUE))
 
 #constants for Nimble
-constants <- list(M=M,K=K,
+constants <- list(M=M,K=K,u.cell.survey=u.cell.survey,survey.map=survey.map,
                   n.cells=data$constants$n.cells,n.cells.x=data$constants$n.cells.x,
                   n.cells.y=data$constants$n.cells.y,res=data$constants$res,
                   x.vals=data$constants$x.vals,y.vals=data$constants$y.vals,

@@ -55,10 +55,11 @@ NimModel <- nimbleCode({
       #for detections, use detection likelihood conditional on cell of detection
       #for nondetections, marginalize detection over unobserved site use, u.cell, marginal prob(not detected). trimmed
       y.true[i,k] ~ dRYmarg(u.cell=u.cell[i,k],sigma=sigma,z=z[i],p=p[1:n.surveyed.cells[k],k],survey=survey[1:n.cells,k],
-                       surveyed.cells=surveyed.cells[1:n.surveyed.cells[k],k],n.surveyed.cells=n.surveyed.cells[k],
-                       use.dist=use.dist[i,1:n.cells],
-                       pos.cells=pos.cells[i,1:n.cells],n.pos.cells=n.pos.cells[i],n.cells=n.cells,
-                       res=res)
+                            survey.map=survey.map[1:n.cells,k],
+                            surveyed.cells=surveyed.cells[1:n.surveyed.cells[k],k],n.surveyed.cells=n.surveyed.cells[k],
+                            use.dist=use.dist[i,1:n.cells],
+                            pos.cells=pos.cells[i,1:n.cells],n.pos.cells=n.pos.cells[i],n.cells=n.cells,
+                            res=res)
       #continuous use location likelihood conditioned on the cell of detection
       #split out of likelihood above bc not used when updating rsf beta, all parameters on p
       #logprob is 0 for all nondetects with u.cell[i,k]=0, which includes all k for z[i]=0 inds.
