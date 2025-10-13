@@ -227,14 +227,15 @@ getUseTel <- nimbleFunction(
 )
 
 getPosCells <- nimbleFunction(
-  run = function(avail.dist=double(1),n.cells=integer(0)) {
+  run = function(avail.dist=double(1),InSS.cells=double(1)){
     returnType(double(1))
-    pos.cells <- rep(0,n.cells)
+    n.InSS.cells <- nimDim(InSS.cells)[1]
+    pos.cells <- rep(0,n.InSS.cells)
     idx <- 1
-    for(c in 1:n.cells){
+    for(c in 1:n.InSS.cells){
       #sets level of trimming used to get use distribution and calculate y marginal logprobs
-      if(avail.dist[c]>1e-5){ #not effectively zero
-        pos.cells[idx] <- c
+      if(avail.dist[InSS.cells[c]]>1e-5){ #not effectively zero
+        pos.cells[idx] <- InSS.cells[c]
         idx <- idx + 1
       }
     }

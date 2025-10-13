@@ -45,11 +45,11 @@ NimModel <- nimbleCode({
                                         y.vals=y.vals[1:n.cells.y],n.cells.x=n.cells.x,n.cells.y=n.cells.y)
     #dynamic sparse matrix representation of cells with nonzero prob of availability to trim 
     #use dist and marginalization calculations below, only needs to be recomputed when s_i or sigma update
-    pos.cells[i,1:n.cells] <- getPosCells(avail.dist=avail.dist[i,1:n.cells],n.cells=n.cells)
-    n.pos.cells[i] <- getNPosCells(pos.cells=pos.cells[i,1:n.cells])
+    pos.cells[i,1:n.InSS.cells] <- getPosCells(avail.dist=avail.dist[i,1:n.cells],InSS.cells=InSS.cells[1:n.InSS.cells])
+    n.pos.cells[i] <- getNPosCells(pos.cells=pos.cells[i,1:n.InSS.cells])
     #Individual use distributions - multiply rsf and available distribution, normalize. trimmed
     use.dist[i,1:n.cells] <- getUse(rsf=rsf[1:n.cells],avail=avail.dist[i,1:n.cells],
-                                    pos.cells=pos.cells[i,1:n.cells],n.pos.cells=n.pos.cells[i],n.cells=n.cells)
+                                    pos.cells=pos.cells[i,1:n.InSS.cells],n.pos.cells=n.pos.cells[i],n.cells=n.cells)
     for(k in 1:K){
       #observation likelihood
       #for detections, use detection likelihood conditional on cell of detection
@@ -58,7 +58,7 @@ NimModel <- nimbleCode({
                             survey.map=survey.map[1:n.cells,k],
                             surveyed.cells=surveyed.cells[1:n.surveyed.cells[k],k],n.surveyed.cells=n.surveyed.cells[k],
                             use.dist=use.dist[i,1:n.cells],
-                            pos.cells=pos.cells[i,1:n.cells],n.pos.cells=n.pos.cells[i],n.cells=n.cells,
+                            pos.cells=pos.cells[i,1:n.InSS.cells],n.pos.cells=n.pos.cells[i],n.cells=n.cells,
                             res=res)
       #continuous use location likelihood conditioned on the cell of detection
       #split out of likelihood above bc not used when updating rsf beta, all parameters on p

@@ -189,7 +189,10 @@ Niminits <- list(z=nimbuild$z,N=nimbuild$N, #must init N to be sum(z.init)
                  s.tel=apply(data$telemetry$u.tel,c(1,3),mean,na.rm=TRUE))
 
 #constants for Nimble
+InSS.cells <- which(data$constants$InSS==1)
+n.InSS.cells <- length(InSS.cells)
 constants <- list(M=M,K=K,u.cell.survey=u.cell.survey,survey.map=survey.map,
+                  InSS.cells=InSS.cells,n.InSS.cells=n.InSS.cells,
                   n.cells=data$constants$n.cells,n.cells.x=data$constants$n.cells.x,
                   n.cells.y=data$constants$n.cells.y,res=data$constants$res,
                   x.vals=data$constants$x.vals,y.vals=data$constants$y.vals,
@@ -218,6 +221,7 @@ parameters<-c('beta.p.int','beta.p.effort','rsf.beta','D.beta1',
 nt <- 2 #thinning rate
 
 # Build the model, configure the mcmc, and compile
+# deregisterDistributions("dRYmarg") #deregister if you previously registered unknown ID version
 start.time<-Sys.time()
 Rmodel <- nimbleModel(code=NimModel, constants=constants, data=Nimdata,check=FALSE,inits=Niminits)
 #tell nimble which nodes to configure so we don't waste time for samplers we will replace below

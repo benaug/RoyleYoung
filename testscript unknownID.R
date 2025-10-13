@@ -114,7 +114,7 @@ p.test <- plogis(beta.p.int + beta.p.effort*effort)
 par(mfrow=c(1,1),ask=FALSE)
 hist(p.test[survey==1])
 
-# set.seed(32348)
+set.seed(32348) #change seed for new data set
 data <- sim.RY(D.beta0=D.beta0,D.beta1=D.beta1,rsf.beta=rsf.beta,
                sigma=sigma,beta.p.int=beta.p.int,beta.p.effort=beta.p.effort,
                xlim=xlim,ylim=ylim,res=res,InSS=InSS,D.cov=D.cov,rsf.cov=rsf.cov,
@@ -147,7 +147,7 @@ nimbleOptions(determinePredictiveNodesInModel = FALSE)
 source("init.data.RY.unknownID.R")
 source("NimbleModel unknownID.R")
 source("sSampler Dcov RSF Marginal.R")
-M <- 250 #data augmentation limit. Must be larger than simulated N. If N posterior hits M, need to raise M and try again.
+M <- 350 #data augmentation limit. Must be larger than simulated N. If N posterior hits M, need to raise M and try again.
 if(M<=data$truth$N)stop("Raise M to be larger than simulated N.")
 
 inits <- list(sigma=1) #needs to be set somewhere in the ballpark of truth
@@ -227,7 +227,10 @@ Niminits <- list(z=nimbuild$z,N=nimbuild$N, #must init N to be sum(z.init)
                  s.tel=apply(data$telemetry$u.tel,c(1,3),mean,na.rm=TRUE))
 
 #constants for Nimble
+InSS.cells <- which(data$constants$InSS==1)
+n.InSS.cells <- length(InSS.cells)
 constants <- list(M=M,K=K,n.samples=n.samples,survey.map=survey.map,
+                  InSS.cells=InSS.cells,n.InSS.cells=n.InSS.cells,
                   n.cells=data$constants$n.cells,n.cells.x=data$constants$n.cells.x,
                   n.cells.y=data$constants$n.cells.y,res=data$constants$res,
                   x.vals=data$constants$x.vals,y.vals=data$constants$y.vals,
@@ -257,6 +260,7 @@ parameters <- c('beta.p.int','beta.p.effort','rsf.beta','D.beta1',
 nt <- 2 #thinning rate
 
 # Build the model, configure the mcmc, and compile
+# deregisterDistributions("dRYmarg") #deregister if you previously registered known ID version
 start.time <- Sys.time()
 Rmodel <- nimbleModel(code=NimModel, constants=constants, data=Nimdata,check=FALSE,inits=Niminits)
 #tell nimble which nodes to configure so we don't waste time for samplers we will replace below
@@ -286,7 +290,7 @@ conf$addSampler(target = paste0("y.true[1:",M,",1:",K,"]"),
                 silent = TRUE)
 
 ###*required* sampler replacement for "alternative data augmentation" N/z update
-z.ups <- round(M*0.25) # how many N/z proposals per iteration? Not sure what is optimal, setting to 25% of M here.
+z.ups <- round(M*0.5) # how many N/z proposals per iteration? Not sure what is optimal, setting to 50% of M here.
 # conf$removeSampler("N")
 #nodes used for update, calcNodes + z nodes
 y.nodes <- Rmodel$expandNodeNames(paste("y.true[1:",M,",1:",K,"]"))
@@ -322,6 +326,7 @@ for(i in 1:data$constants$n.tel.inds){
                                                               calcNodes.s.tel=calcNodes.s.tel), silent = TRUE)
 }
 
+#can try blocking D0 and beta.p.int, or all 3
 conf$addSampler(target = c("D0","D.beta1"),
                 type = 'RW_block',control=list(adaptive=TRUE),silent = TRUE)
 
@@ -333,7 +338,7 @@ Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
 
 # Run the model.
 start.time2 <- Sys.time()
-Cmcmc$run(1000,reset=FALSE) #can keep running this line to extend sampler
+Cmcmc$run(2500,reset=FALSE) #can keep running this line to extend sampler
 end.time <- Sys.time()
 end.time - start.time  # total time for compilation, replacing samplers, and fitting
 end.time - start.time2 # post-compilation run time
