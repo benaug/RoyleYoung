@@ -129,7 +129,7 @@ sim.RY <-
         s.tel[i,2] <- runif(1,s.ylim[1],s.ylim[2])
       }
       #get BVN availability and use distributions
-      avail.dist.tel <- use.dist.tel <- matrix(NA,N,n.cells)
+      avail.dist.tel <- use.dist.tel <- matrix(NA,n.tel.inds,n.cells)
       for(i in 1:n.tel.inds){
         avail.dist.tel[i,] <- getAvail(s=s.tel[i,1:2],sigma=sigma,res=res,x.vals=x.vals,
                                        y.vals=y.vals,n.cells.x=n.cells.x,n.cells.y=n.cells.y)
