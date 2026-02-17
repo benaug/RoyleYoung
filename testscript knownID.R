@@ -283,7 +283,7 @@ end.time-start.time  # total time for compilation, replacing samplers, and fitti
 end.time-start.time2 # post-compilation run time
 
 library(coda)
-mvSamples = as.matrix(Cmcmc$mvSamples)
+mvSamples <- as.matrix(Cmcmc$mvSamples)
 plot(mcmc(mvSamples[20:nrow(mvSamples),])) #discarding some burnin here. Can't plot 1st sample which is all NA
 
 data$truth$lambda #target expected abundance

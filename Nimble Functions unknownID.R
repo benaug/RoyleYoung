@@ -1,23 +1,27 @@
 dTruncNormVector <- nimbleFunction(
-  run = function(x = double(2), s = double(1), sigma = double(0), u.xlim = double(2), u.ylim = double(2), n.locs.ind = double(0), log = integer(0)) {
+  run = function(x = double(2), s = double(1), sigma = double(0), u.xlim = double(2), u.ylim = double(2),
+                 n.locs.ind = double(0), log = integer(0)) {
     returnType(double(0))
     if(n.locs.ind>0){
-      prob.x <- rep(0,n.locs.ind)
-      prob.y <- rep(0,n.locs.ind)
-      pnorm.lower.x <- rep(0,n.locs.ind)
-      pnorm.upper.x <- rep(0,n.locs.ind)
-      pnorm.lower.y <- rep(0,n.locs.ind)
-      pnorm.upper.y <- rep(0,n.locs.ind)
+      logProb <- 0
       for(i in 1:n.locs.ind){
-        prob.x[i] <- dnorm(x[i,1],s[1],sd=sigma)
-        prob.y[i] <- dnorm(x[i,2],s[2],sd=sigma)
-        pnorm.lower.x[i] <- pnorm(u.xlim[i,1],s[1],sigma)
-        pnorm.upper.x[i] <- pnorm(u.xlim[i,2],s[1],sigma)
-        pnorm.lower.y[i] <- pnorm(u.ylim[i,1],s[2],sigma)
-        pnorm.upper.y[i] <- pnorm(u.ylim[i,2],s[2],sigma)
+        # log density at point
+        logpx <- dnorm(x[i,1], mean = s[1], sd = sigma, log = TRUE)
+        logpy <- dnorm(x[i,2], mean = s[2], sd = sigma, log = TRUE)
+        # log CDFs - need to deal with potential underflow
+        lFxU <- pnorm(u.xlim[i,2], mean = s[1], sd = sigma, log.p = TRUE)
+        lFxL <- pnorm(u.xlim[i,1], mean = s[1], sd = sigma, log.p = TRUE)
+        lFyU <- pnorm(u.ylim[i,2], mean = s[2], sd = sigma, log.p = TRUE)
+        lFyL <- pnorm(u.ylim[i,1], mean = s[2], sd = sigma, log.p = TRUE)
+        # if U <= L numerically, density is undefined -> -Inf
+        if (lFxU <= lFxL | lFyU <= lFyL){
+          logProb <- -Inf
+        }else{
+          logDenX <- lFxU + log(1 - exp(lFxL - lFxU))
+          logDenY <- lFyU + log(1 - exp(lFyL - lFyU))
+          logProb <- logProb + (logpx - logDenX) + (logpy - logDenY)
+        }
       }
-      logProb <- sum(log(prob.x/(pnorm.upper.x-pnorm.lower.x))) +
-        sum(log(prob.y/(pnorm.upper.y-pnorm.lower.y)))
     }else{
       logProb <- 0
     }
@@ -143,45 +147,53 @@ rRYmarg <- nimbleFunction(
   })
 
 getAvail <- nimbleFunction(
-  run = function(s = double(1),sigma=double(0),res=double(0),x.vals=double(1),y.vals=double(1),n.cells.x=integer(0),n.cells.y=integer(0)) {
+  run = function(s = double(1),sigma=double(0),res=double(0),x.vals=double(1),y.vals=double(1),
+                 n.cells.x=integer(0),n.cells.y=integer(0)){
     returnType(double(1))
     avail.dist.x <- rep(0,n.cells.x)
     avail.dist.y <- rep(0,n.cells.y)
     delta <- 1e-8 #this sets the degree of trimming used to get individual availability distributions
     x.limits <- qnorm(c(delta,1-delta),mean=s[1],sd=sigma)
     y.limits <- qnorm(c(delta,1-delta),mean=s[2],sd=sigma)
-    #convert to grid edges instead of centroids
-    x.vals.edges <- c(x.vals - res/2, x.vals[n.cells.x]+0.5*res)
-    y.vals.edges <- c(y.vals - res/2, y.vals[n.cells.y]+0.5*res)
-    #trim in x and y direction
-    if(x.vals.edges[1]<x.limits[1]){
-      x.start <- sum(x.vals.edges<x.limits[1])
-    }else{
-      x.start <- 1
-    }
-    if(x.vals.edges[n.cells.x]>x.limits[2]){
-      x.stop <- which(x.vals.edges>x.limits[2])[1]
-    }else{
-      x.stop <- n.cells.x
-    }
-    if(y.vals.edges[1]<y.limits[1]){
-      y.start <- sum(y.vals.edges<y.limits[1])
-    }else{
-      y.start <- 1
-    }
-    if(y.vals.edges[n.cells.y]>y.limits[2]){
-      y.stop <- which(y.vals.edges>y.limits[2])[1]
-    }else{
-      y.stop <- n.cells.y
-    }
+    
+    #first edges
+    x.edge1 <- x.vals[1] - 0.5 * res
+    y.edge1 <- y.vals[1] - 0.5 * res
+    
+    #inclusive cell indices
+    x.start <- floor((x.limits[1] - x.edge1) / res) + 1
+    x.stop  <- ceiling((x.limits[2] - x.edge1) / res)
+    x.start <- max(1, min(n.cells.x, x.start))
+    x.stop  <- max(1, min(n.cells.x, x.stop))
+    
+    y.start <- floor((y.limits[1] - y.edge1) / res) + 1
+    y.stop  <- ceiling((y.limits[2] - y.edge1) / res)
+    y.start <- max(1, min(n.cells.y, y.start))
+    y.stop  <- max(1, min(n.cells.y, y.stop))
+    
+    #safeguard: collapse to cell containing s if rounding makes start > stop
+    sx_cell <- floor((s[1] - x.edge1) / res) + 1
+    sy_cell <- floor((s[2] - y.edge1) / res) + 1
+    sx_cell <- max(1, min(n.cells.x, sx_cell))
+    sy_cell <- max(1, min(n.cells.y, sy_cell))
+    
     #get pnorms
+    x.vals.edges <- c(x.vals - res/2, x.vals[n.cells.x] + 0.5*res)
+    y.vals.edges <- c(y.vals - res/2, y.vals[n.cells.y] + 0.5*res)
     pnorm.x <- rep(0,n.cells.x+1)
     pnorm.y <- rep(0,n.cells.y+1)
-    pnorm.x[x.start:(x.stop+1)] <- pnorm(x.vals.edges[x.start:(x.stop+1)], mean=s[1], sd=sigma)
-    pnorm.y[y.start:(y.stop+1)] <- pnorm(y.vals.edges[y.start:(y.stop+1)], mean=s[2], sd=sigma)
-    # Compute availability distributions
-    avail.dist.x[x.start:x.stop] <- pnorm.x[(x.start+1):(x.stop+1)] - pnorm.x[x.start:x.stop]
-    avail.dist.y[y.start:y.stop] <- pnorm.y[(y.start+1):(y.stop+1)] - pnorm.y[y.start:y.stop]
+    for(l in x.start:(x.stop+1)){
+      pnorm.x[l] <- pnorm(x.vals.edges[l],mean=s[1],sd=sigma)
+    }
+    for(l in y.start:(y.stop+1)){
+      pnorm.y[l] <- pnorm(y.vals.edges[l],mean=s[2],sd=sigma)
+    }
+    for(l in (x.start):(x.stop)){
+      avail.dist.x[l] <- pnorm.x[l+1] - pnorm.x[l]
+    }
+    for(l in (y.start):(y.stop)){
+      avail.dist.y[l] <- pnorm.y[l+1] - pnorm.y[l]
+    }
     avail.dist.tmp <- matrix(0,n.cells.x,n.cells.y)
     sum.dist <- 0
     for(i in x.start:x.stop){
