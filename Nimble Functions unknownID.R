@@ -147,40 +147,41 @@ rRYmarg <- nimbleFunction(
   })
 
 getAvail <- nimbleFunction(
-  run = function(s = double(1),sigma=double(0),res=double(0),x.vals=double(1),y.vals=double(1),n.cells.x=integer(0),n.cells.y=integer(0)) {
+  run = function(s = double(1),sigma=double(0),res=double(0),x.vals=double(1),y.vals=double(1),
+                 n.cells.x=integer(0),n.cells.y=integer(0)){
     returnType(double(1))
     avail.dist.x <- rep(0,n.cells.x)
     avail.dist.y <- rep(0,n.cells.y)
     delta <- 1e-8 #this sets the degree of trimming used to get individual availability distributions
     x.limits <- qnorm(c(delta,1-delta),mean=s[1],sd=sigma)
     y.limits <- qnorm(c(delta,1-delta),mean=s[2],sd=sigma)
-    #convert to grid edges instead of centroids
-    x.vals.edges <- c(x.vals - res/2, x.vals[n.cells.x]+0.5*res)
-    y.vals.edges <- c(y.vals - res/2, y.vals[n.cells.y]+0.5*res)
-    #trim in x and y direction
-    if(x.vals.edges[1]<x.limits[1]){
-      x.start <- sum(x.vals.edges<x.limits[1])
-    }else{
-      x.start <- 1
-    }
-    if(x.vals.edges[n.cells.x]>x.limits[2]){
-      x.stop <- which(x.vals.edges>x.limits[2])[1]
-    }else{
-      x.stop <- n.cells.x
-    }
-    if(y.vals.edges[1]<y.limits[1]){
-      y.start <- sum(y.vals.edges<y.limits[1])
-    }else{
-      y.start <- 1
-    }
-    if(y.vals.edges[n.cells.y]>y.limits[2]){
-      y.stop <- which(y.vals.edges>y.limits[2])[1]
-    }else{
-      y.stop <- n.cells.y
-    }
+    
+    #first edges
+    x.edge1 <- x.vals[1] - 0.5 * res
+    y.edge1 <- y.vals[1] - 0.5 * res
+    
+    #inclusive cell indices
+    x.start <- floor((x.limits[1] - x.edge1) / res) + 1
+    x.stop  <- ceiling((x.limits[2] - x.edge1) / res)
+    x.start <- max(1, min(n.cells.x, x.start))
+    x.stop  <- max(1, min(n.cells.x, x.stop))
+    
+    y.start <- floor((y.limits[1] - y.edge1) / res) + 1
+    y.stop  <- ceiling((y.limits[2] - y.edge1) / res)
+    y.start <- max(1, min(n.cells.y, y.start))
+    y.stop  <- max(1, min(n.cells.y, y.stop))
+    
+    #safeguard: collapse to cell containing s if rounding makes start > stop
+    sx_cell <- floor((s[1] - x.edge1) / res) + 1
+    sy_cell <- floor((s[2] - y.edge1) / res) + 1
+    sx_cell <- max(1, min(n.cells.x, sx_cell))
+    sy_cell <- max(1, min(n.cells.y, sy_cell))
+    
+    #get pnorms
+    x.vals.edges <- c(x.vals - res/2, x.vals[n.cells.x] + 0.5*res)
+    y.vals.edges <- c(y.vals - res/2, y.vals[n.cells.y] + 0.5*res)
     pnorm.x <- rep(0,n.cells.x+1)
     pnorm.y <- rep(0,n.cells.y+1)
-    #get pnorms
     for(l in x.start:(x.stop+1)){
       pnorm.x[l] <- pnorm(x.vals.edges[l],mean=s[1],sd=sigma)
     }
