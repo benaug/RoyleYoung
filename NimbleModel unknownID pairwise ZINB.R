@@ -41,7 +41,7 @@ NimModel <- nimbleCode({
     p[1:n.surveyed.cells[k],k] <- getP(surveyed.cells.effort=surveyed.cells.effort[1:n.surveyed.cells[k],k],
                                        n.surveyed.cells=n.surveyed.cells[k],
                                        beta.p.int=beta.p.int,beta.p.effort=beta.p.effort)
-    #save p*RSF for surveyed cells because it is shared across all individuals.
+    #store p*RSF for surveyed cells because it is shared across all individuals.
     for(c in 1:n.surveyed.cells[k]){
       p.rsf[c,k] <- p[c,k]*rsf[surveyed.cells[c,k]]
     }
