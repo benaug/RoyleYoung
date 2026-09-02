@@ -23,75 +23,71 @@ NimModel <- nimbleCode({
   pi.cell[1:n.cells] <- lambda.cell[1:n.cells]/pi.denom #expected proportion of total N in cell c
   pi.denom <- sum(lambda.cell[1:n.cells])
   lambda <- D.intercept*pi.denom #Expected N
-  N ~ dpois(lambda) #Realized N
+  N ~ dpois(lambda)
+
   #Resource selection function evaluated across all cells
-  rsf[1:n.cells] <- exp(rsf.beta*rsf.cov[1:n.cells])
+  rsf[1:n.cells] <- InSS[1:n.cells]*exp(rsf.beta*rsf.cov[1:n.cells])
+
   #Detection model
   for(k in 1:K){
     #p in each surveyed cell on occasion k - sparse matrix representation
     p[1:n.surveyed.cells[k],k] <- getP(surveyed.cells.effort=surveyed.cells.effort[1:n.surveyed.cells[k],k],
-                                      n.surveyed.cells=n.surveyed.cells[k],
-                                      beta.p.int=beta.p.int,beta.p.effort=beta.p.effort)
-  }
-  for(i in 1:M){ #individual likelihoods
-    #continuous activity center prior inside cell
-    s[i,1] ~ dunif(xlim[1],xlim[2])
-    s[i,2] ~ dunif(ylim[1],ylim[2])
-    s.cell[i] <- cells[trunc(s[i,1]/res)+1,trunc(s[i,2]/res)+1] #extract activity center cell
-    #categorical activity center likelihood for this cell, equivalent to zero's trick
-    dummy.data[i] ~ dCell(pi.cell[s.cell[i]])
-    #Individual availability distributions conditioned on cells, bivariate Normal centered on activity center
-    avail.dist[i,1:n.cells] <- getAvail(s=s[i,1:2],sigma=sigma,res=res,x.vals=x.vals[1:n.cells.x],
-                                        y.vals=y.vals[1:n.cells.y],n.cells.x=n.cells.x,n.cells.y=n.cells.y)
-    #dynamic sparse matrix representation of cells with nonzero prob of availability to trim 
-    #use dist and marginalization calculations below, only needs to be recomputed when s_i or sigma update
-    pos.cells[i,1:n.InSS.cells] <- getPosCells(avail.dist=avail.dist[i,1:n.cells],InSS.cells=InSS.cells[1:n.InSS.cells])
-    n.pos.cells[i] <- getNPosCells(pos.cells=pos.cells[i,1:n.InSS.cells])
-    #Individual use distributions - multiply rsf and available distribution, normalize. trimmed
-    use.dist[i,1:n.cells] <- getUse(rsf=rsf[1:n.cells],avail=avail.dist[i,1:n.cells],
-                                    pos.cells=pos.cells[i,1:n.InSS.cells],n.pos.cells=n.pos.cells[i],n.cells=n.cells)
-    for(k in 1:K){
-      #observation likelihood
-      #for detections, use detection likelihood conditional on cell of detection
-      #for nondetections, marginalize detection over unobserved site use, u.cell, marginal prob(not detected). trimmed
-      y.true[i,k] ~ dRYmarg(u.cell=u.cell[i,k],sigma=sigma,z=z[i],p=p[1:n.surveyed.cells[k],k],survey=survey[1:n.cells,k],
-                            survey.map=survey.map[1:n.cells,k],
-                            surveyed.cells=surveyed.cells[1:n.surveyed.cells[k],k],n.surveyed.cells=n.surveyed.cells[k],
-                            use.dist=use.dist[i,1:n.cells],
-                            pos.cells=pos.cells[i,1:n.InSS.cells],n.pos.cells=n.pos.cells[i],n.cells=n.cells,
-                            res=res)
-      #continuous use location likelihood conditioned on the cell of detection
-      #split out of likelihood above bc not used when updating rsf beta, all parameters on p
-      #logprob is 0 for all nondetects with u.cell[i,k]=0, which includes all k for z[i]=0 inds.
-      u[i,k,1:2] ~ duInCell(s=s[i,1:2],u.cell=u.cell[i,k],sigma=sigma,n.cells.x=n.cells.x,res=res)
+                                       n.surveyed.cells=n.surveyed.cells[k],
+                                       beta.p.int=beta.p.int,beta.p.effort=beta.p.effort)
+    #save p*RSF for surveyed cells because it is shared across all individuals.
+    for(c in 1:n.surveyed.cells[k]){
+      p.rsf[c,k] <- p[c,k]*rsf[surveyed.cells[c,k]]
     }
   }
+  for(i in 1:M){
+    # z-gated AC distribution. When z=0, s is fixed at c(0,0); when z=1, s is drawn
+    # from pi.cell and then uniformly within the selected cell.
+    s[i,1:2] ~ dAC(pi.cell=pi.cell[1:n.cells],res=res,n.cells.x=n.cells.x,n.cells.y=n.cells.y,z=z[i])
+    #Factored individual availability distribution. The BVN cell probability is
+    #avail.x[cell.x]*avail.y[cell.y], no n.cells-length availability vector is stored.
+    avail.x[i,1:n.cells.x] <- getAvail1D(s=s[i,1],sigma=sigma,res=res,vals.edges=x.vals.edges[1:(n.cells.x+1)],
+                                         n.cells=n.cells.x,avail.z=avail.z,z=z[i])
+    avail.y[i,1:n.cells.y] <- getAvail1D(s=s[i,2],sigma=sigma,res=res,vals.edges=y.vals.edges[1:(n.cells.y+1)],
+                                         n.cells=n.cells.y,avail.z=avail.z,z=z[i])
+    #RSF-weighted normalizing constant
+    use.denom[i] <- getUseDenom(rsf=rsf[1:n.cells],avail.x=avail.x[i,1:n.cells.x],
+                                avail.y=avail.y[i,1:n.cells.y],n.cells.x=n.cells.x,n.cells.y=n.cells.y,z=z[i])
+
+    for(k in 1:K){
+      #Latent-ID detection state; IDSampler moves detections among individual-occasion slots.
+      y.true[i,k] ~ dRYmargFactored(u.cell.survey=u.cell.survey[i,k],z=z[i],
+                                    p.rsf=p.rsf[1:n.surveyed.cells[k],k],
+                                    surveyed.cell.x=surveyed.cell.x[1:n.surveyed.cells[k],k], 
+                                    surveyed.cell.y=surveyed.cell.y[1:n.surveyed.cells[k],k], 
+                                    n.surveyed.cells=n.surveyed.cells[k], 
+                                    avail.x=avail.x[i,1:n.cells.x],avail.y=avail.y[i,1:n.cells.y], 
+                                    use.denom=use.denom[i]) 
+      #Latent-ID continuous location likelihood. Nondetection slots have u.cell=0 and contribute 0
+      u[i,k,1:2] ~ duInCell(s=s[i,1:2],u.cell=u.cell[i,k],sigma=sigma,n.cells.x=n.cells.x,res=res,
+                            avail.x=avail.x[i,1:n.cells.x],avail.y=avail.y[i,1:n.cells.y])
+    }
+  }
+
   #telemetry - could use these for mark-resight if random sample w.r.t. space or marking process is modeled
   for(i in 1:n.tel.inds){
-    s.tel[i,1] ~ dunif(xlim[1],xlim[2])
-    s.tel[i,2] ~ dunif(ylim[1],ylim[2])
-    #can use telemetry data to inform D cov estimation, assumes inds captured at random wrt to response to expected D
-    s.cell.tel[i] <- cells[trunc(s.tel[i,1]/res)+1,trunc(s.tel[i,2]/res)+1] #extract activity center cell
-    dummy.data.tel[i] ~ dCell(pi.cell[s.cell.tel[i]])
-    #Individual available distributions - bivariate Normal centered on activity center.
-    avail.dist.tel[i,1:n.cells] <- getAvail(s=s.tel[i,1:2],sigma=sigma,res=res,x.vals=x.vals[1:n.cells.x],
-                                            y.vals=y.vals[1:n.cells.y],n.cells.x=n.cells.x,n.cells.y=n.cells.y)
-    #Individual use distributions - multiply rsf and available distribution, normalize. not trimmed
-    use.dist.tel[i,1:n.cells] <- getUseTel(rsf=rsf[1:n.cells],avail=avail.dist.tel[i,1:n.cells])
-    u.cell.tel[i,1:n.locs.ind[i]] ~ dCatVector(use.dist.tel[i,1:n.cells],n.locs.ind=n.locs.ind[i])
-    u.tel[i,1:n.locs.ind[i],1:2] ~ dTruncNormVector(s=s.tel[i,1:2],sigma=sigma,n.locs.ind=n.locs.ind[i],
-                                                    u.xlim=u.xlim.tel[i,1:n.locs.ind[i],1:2],
-                                                    u.ylim=u.ylim.tel[i,1:n.locs.ind[i],1:2])
-    # for(k in 1:n.locs.ind[i]){
-    #   u.cell.tel[i,k] ~ dcat(use.dist.tel[i,1:n.cells]) #likelihood of this cell being used
-    #   #continuous use location likelihood conditioned on the cell
-    #   u.tel[i,k,1] ~ T(dnorm(s.tel[i,1],sd=sigma),u.xlim.tel[i,k,1],u.xlim.tel[i,k,2])
-    #   u.tel[i,k,2] ~ T(dnorm(s.tel[i,2],sd=sigma),u.ylim.tel[i,k,1],u.ylim.tel[i,k,2])
-    # }
+    #use same density process as detected individuals
+    # s.tel[i,1:2] ~ dAC(pi.cell=pi.cell[1:n.cells],res=res,n.cells.x=n.cells.x,n.cells.y=n.cells.y,z=1)
+    #uniform over InSS
+    s.tel[i,1:2] ~ dAC(pi.cell=pi.cell.tel[1:n.cells],res=res,n.cells.x=n.cells.x,n.cells.y=n.cells.y,z=1)
+    #Factored telemetry availability and normalizing constants.
+    avail.x.tel[i,1:n.cells.x] <- getAvail1D(s=s.tel[i,1],sigma=sigma,res=res,vals.edges=x.vals.edges[1:(n.cells.x+1)],
+                                             n.cells=n.cells.x,avail.z=avail.z,z=1)
+    avail.y.tel[i,1:n.cells.y] <- getAvail1D(s=s.tel[i,2],sigma=sigma,res=res,vals.edges=y.vals.edges[1:(n.cells.y+1)],
+                                             n.cells=n.cells.y,avail.z=avail.z,z=1)
+    use.denom.tel[i] <- getUseDenom(rsf=rsf[1:n.cells],avail.x=avail.x.tel[i,1:n.cells.x],
+                                    avail.y=avail.y.tel[i,1:n.cells.y],n.cells.x=n.cells.x,n.cells.y=n.cells.y,z=1)
+    #Cell-use probability and within-cell truncation cancel for telemetry locations.
+    u.tel[i,1:n.locs.ind[i],1:2] ~ dTelemetryFactored(u.cell=u.cell.tel[i,1:n.locs.ind[i]],s=s.tel[i,1:2],
+                                                      sigma=sigma,rsf=rsf[1:n.cells],use.denom=use.denom.tel[i],
+                                                      n.cells.x=n.cells.x,n.locs.ind=n.locs.ind[i])
   }
-  #latent ID derived variables
-  #number of detections per individual
+
+  #Latent-ID derived variables.
   capcounts[1:M] <- Getcapcounts(y.true=y.true[1:M,1:K])
-  #number of detected individuals
   n <- Getncap(capcounts=capcounts[1:M],ID=ID[1:n.samples])
-})# end model
+})

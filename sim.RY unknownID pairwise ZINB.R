@@ -1,6 +1,6 @@
-sim.RY <- function(D.beta0=NA,D.beta1=NA,rsf.beta=NA,sigma=NA,beta.p.int=NA,beta.p.effort=NA,
-           xlim=NA,ylim=NA,res=NA,InSS=NA,D.cov=NA,rsf.cov=NA,effort=NA,survey=NA,
-           K=NA,K.tel=0,n.tel.inds=0){
+sim.RY.pairwise.ZINB <- function(D.beta0=NA,D.beta1=NA,rsf.beta=NA,sigma=NA,beta.p.int=NA,beta.p.effort=NA, 
+           xlim=NA,ylim=NA,res=NA,InSS=NA,D.cov=NA,rsf.cov=NA,effort=NA,survey=NA, 
+           K=NA,K.tel=0,n.tel.inds=0,mu.match=NA,theta.match=NA,p.zero.match=NA){ 
     if(K==1)stop("K must be >1")
     if(xlim[1]!=0|ylim[1]!=0)stop("xlim and ylim must start at 0.")
     if((diff(range(xlim))/res)%%1!=0)stop("The range of xlim must be divisible by 'res'")
@@ -195,15 +195,27 @@ sim.RY <- function(D.beta0=NA,D.beta1=NA,rsf.beta=NA,sigma=NA,beta.p.int=NA,beta
     }
     if(!all(y==y.check))stop("Error rebuilding data. Report Bug.")
     if(!all(u.check==u.obs,na.rm=TRUE))stop("Error rebuilding data. Report Bug.")
+
+    #ZINB pairwise match scores
+    scores <- match.type <- matrix(NA,n.samples,n.samples) 
+    for(l1 in 1:(n.samples-1)){ 
+      for(l2 in (l1+1):n.samples){ 
+        match.type[l1,l2] <- 1*(ID[l1]==ID[l2]) + 2*(1-(ID[l1]==ID[l2])) 
+        scores[l1,l2] <- rZINB(1,mu=mu.match[match.type[l1,l2]], 
+                               p.zero=p.zero.match[match.type[l1,l2]], 
+                               theta=theta.match[match.type[l1,l2]]) 
+      } 
+    } 
     
     constants <- list(K=K,K.tel=K.tel,xlim=xlim,ylim=ylim,dSS=dSS,res=res,cells=cells,x.vals=x.vals,y.vals=y.vals,
                       n.tel.inds=n.tel.inds,n.locs.ind=n.locs.ind,n.samples=n.samples,survey=survey,effort=effort,
                       InSS=InSS,n.cells=n.cells,n.cells.x=n.cells.x,n.cells.y=n.cells.y,D.cov=D.cov,rsf.cov=rsf.cov)
-    truth <- list(lambda=lambda,lambda.cell=lambda.cell,rsf=rsf,N=N,s=s,u=u,s.cell=s.cell,u.cell=u.cell,
-                  ID=ID,n=n,s.tel=s.tel,s.tel.cell=s.tel.cell,
-                  use.dist=use.dist,avail.dist=avail.dist)
-    capture <- list(y=y,u.obs=u.obs, u.cell=u.cell.obs, #known ID
-                    this.k=this.k,u.obs2D=u.obs2D) #unknown ID
+    truth <- list(lambda=lambda,lambda.cell=lambda.cell,rsf=rsf,N=N,s=s,u=u,s.cell=s.cell,u.cell=u.cell, 
+                  ID=ID,n=n,s.tel=s.tel,s.tel.cell=s.tel.cell,match.type=match.type, 
+                  mu.match=mu.match,theta.match=theta.match,p.zero.match=p.zero.match, 
+                  use.dist=use.dist,avail.dist=avail.dist) 
+    capture <- list(y=y,u.obs=u.obs,u.cell=u.cell.obs, #known ID 
+                    this.k=this.k,u.obs2D=u.obs2D,scores=scores) #unknown ID + pairwise scores 
     if(n.tel.inds>0){
       telemetry <- list(u.tel=u.tel,u.cell.tel=u.cell.tel,u.xlim.tel=u.xlim.tel,
                         u.ylim.tel=u.ylim.tel) #observed telemetry data

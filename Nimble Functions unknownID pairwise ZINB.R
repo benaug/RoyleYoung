@@ -1,3 +1,34 @@
+#ZINB pairwise match-score distribution
+#mu is the unconditional mean; the negative-binomial component mean is mu/(1-p.zero)
+dZINB <- nimbleFunction(
+  run = function(x = integer(0),p.zero=double(0),mu=double(0),theta=double(0),log=integer(0)) {
+    returnType(double(0))
+    lambda <- mu/(1-p.zero)
+    prob <- theta/(theta+lambda)
+    if(x==0){
+      logProb <- log(p.zero + (1-p.zero)*dnbinom(0,size=theta,prob=prob,log=FALSE))
+    }else{
+      logProb <- log((1-p.zero)*dnbinom(x,size=theta,prob=prob,log=FALSE))
+    }
+    if(log){
+      return(logProb)
+    }else{
+      return(exp(logProb))
+    }
+  }
+)
+
+#RNG set up for only n=1; retained from the previous ZINB implementation. 
+rZINB <- nimbleFunction(
+  run = function(n = integer(0),p.zero=double(0),mu=double(0),theta=double(0)) {
+    returnType(integer(0))
+    lambda <- mu/(1-p.zero)
+    prob <- theta/(theta+lambda)
+    ans <- rnbinom(1,size=theta,prob=prob)*rbinom(n,prob=1-p.zero,size=1)
+    return(ans[1])
+  }
+)
+
 #Within-cell continuous likelihood using stored 1-D availability probabilities.
 duInCell <- nimbleFunction(
   run = function(x = double(1),s = double(1),u.cell = double(0),sigma = double(0),
@@ -559,6 +590,7 @@ zSampler <- nimbleFunction(
 
 #Latent-ID update.
 #proposal weights are computed from the factored use representation
+#Pairwise match-score likelihoods are included in each ID proposal. 
 IDSampler <- nimbleFunction( 
   contains = sampler_BASE,
   setup = function(model, mvSaved, target, control) {
@@ -569,6 +601,9 @@ IDSampler <- nimbleFunction(
     u.obs.cell <- control$u.obs.cell
     y.nodes <- control$y.nodes
     u.nodes <- control$u.nodes
+    map.score <- control$map.score
+    calcNodes.match.type <- control$calcNodes.match.type
+    calcNodes.scores <- control$calcNodes.scores
     calcNodes.all <- control$calcNodes.all
     n.cells.x <- control$n.cells.x
   },
@@ -605,10 +640,12 @@ IDSampler <- nimbleFunction(
           y.idx.curr <- ID.curr+(k.curr-1)*M
           y.idx.cand <- ID.cand+(k.curr-1)*M
           these.nodes <- c(y.idx.curr,y.idx.cand)
+          these.scores <- map.score[l,1:(n.samples-1)] #all pairwise scores involving focal sample l
 
           lp.initial.y <- model$getLogProb(y.nodes[these.nodes])
           lp.initial.u <- model$getLogProb(u.nodes[these.nodes])
-          lp.initial.total <- lp.initial.y+lp.initial.u
+          lp.initial.scores <- model$getLogProb(calcNodes.scores[these.scores])
+          lp.initial.total <- lp.initial.y+lp.initial.u+lp.initial.scores
 
           model[["ID"]][l] <<- pick
 
@@ -621,6 +658,11 @@ IDSampler <- nimbleFunction(
           check <- sum(mvSaved["ID",1][1:n.samples]==pick & this.k==k.curr)
           if(check==1){
             check.l <- which(mvSaved["ID",1][1:n.samples]==pick & this.k==k.curr)[1]
+            these.scores.check.l <- map.score[check.l,1:(n.samples-1)] 
+            #The focal/check.l score node occurs in both score-node sets.
+            #Its match status remains "different ID" before and after the ID swap,
+            #so its duplicated likelihood contribution is identical on both sides of the MH ratio and cancels.
+            lp.initial.total <- lp.initial.total + model$getLogProb(calcNodes.scores[these.scores.check.l])
             model[["ID"]][check.l] <<- mvSaved["ID",1][l]
           }
 
@@ -640,9 +682,17 @@ IDSampler <- nimbleFunction(
           model[["u"]][ID.curr,k.curr,2] <<- mvSaved["u",1][ID.cand,k.curr,2]
           model[["u"]][ID.cand,k.curr,2] <<- mvSaved["u",1][ID.curr,k.curr,2]
 
+          # match.type must be updated after changing ID and before evaluating score likelihoods.
+          model$calculate(calcNodes.match.type[these.scores])
+          lp.proposed.scores <- model$calculate(calcNodes.scores[these.scores])
+          if(check==1){ 
+            model$calculate(calcNodes.match.type[these.scores.check.l]) 
+            lp.proposed.scores <- lp.proposed.scores + model$calculate(calcNodes.scores[these.scores.check.l]) 
+          } 
+
           lp.proposed.y <- model$calculate(y.nodes[these.nodes])
           lp.proposed.u <- model$calculate(u.nodes[these.nodes])
-          lp.proposed.total <- lp.proposed.y+lp.proposed.u
+          lp.proposed.total <- lp.proposed.y+lp.proposed.u+lp.proposed.scores 
 
           log_MH_ratio <- (lp.proposed.total+log(backprob)+log(focalbackprob)) -
             (lp.initial.total+log(propprob)+log(focalprob))
@@ -676,6 +726,13 @@ IDSampler <- nimbleFunction(
             if(check==1){
               model[["ID"]][check.l] <<- mvSaved["ID",1][check.l]
             }
+            #restore deterministic match types and score logProbs after restoring IDs. 
+            model$calculate(calcNodes.match.type[these.scores]) 
+            model$calculate(calcNodes.scores[these.scores]) 
+            if(check==1){ 
+              model$calculate(calcNodes.match.type[these.scores.check.l]) 
+              model$calculate(calcNodes.scores[these.scores.check.l]) 
+            } 
           }
         }
       }

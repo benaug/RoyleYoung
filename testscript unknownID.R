@@ -1,18 +1,23 @@
-#"appears to work". Will remove this when tested.
-
-library(nimble) #data simulator uses nimble
-library(truncnorm) #required for data simulator
+library(nimble)
+library(truncnorm)
+library(coda)
 source("sim.RY.R")
-source("Nimble Functions unknownID.R") #nimble functions used in data simulator
+source("Nimble Functions unknownID V2.R")
+source("init.data.RY.unknownID V2.R")
+source("NimbleModel unknownID V2.R")
+source("Nimble Functions unknownID V2.R")
+source("sSampler Dcov RSF Marginal.R")
+nimbleOptions(determinePredictiveNodesInModel = FALSE) #must run this line
+
 #get some colors
 library(RColorBrewer)
 cols1 <- brewer.pal(9,"Greens")
 cols2 <- brewer.pal(9,"YlOrBr")
 
 #state space. Must start at (0,0)
-xlim <- c(0,40)
-ylim <- c(0,40)
-res <- 1 #resolution, cell width/height
+xlim <- c(0,100)
+ylim <- c(0,100)
+res <- 2.5 #resolution, cell width/height
 if(xlim[1]!=0|ylim[1]!=0)stop("xlim and ylim must start at 0.")
 if((diff(range(xlim))/res)%%1!=0)stop("The range of xlim must be divisible by 'res'")
 if((diff(range(ylim))/res)%%1!=0)stop("The range of ylim must be divisible by 'res'")
@@ -30,7 +35,7 @@ set.seed(1320562)
 library(fields)
 set.seed(1)
 grid <- list(x=x.vals,y=y.vals) 
-obj <- Exp.image.cov(grid=grid,aRange=15,setup=TRUE)
+obj <- Exp.image.cov(grid=grid,aRange=20,setup=TRUE)
 D.cov <- sim.rf(obj)
 D.cov <- as.numeric(scale(D.cov)) #scale
 par(mfrow=c(1,1),ask=FALSE)
@@ -38,7 +43,7 @@ image(x.vals,y.vals,matrix(D.cov,n.cells.x,n.cells.y),main="D.cov",xlab="X",ylab
 
 #simulate an rsf cov, lower cov.pars for finer scale cov
 set.seed(24674345)
-obj <- Exp.image.cov(grid=grid,aRange=5,setup=TRUE)
+obj <- Exp.image.cov(grid=grid,aRange=10,setup=TRUE)
 rsf.cov <- sim.rf(obj)
 rsf.cov <- as.numeric(scale(rsf.cov)) #scale
 image(x.vals,y.vals,matrix(rsf.cov,n.cells.x,n.cells.y),main="rsf.cov",xlab="X",ylab="Y",col=cols1)
@@ -55,7 +60,7 @@ image(x.vals,y.vals,matrix(D.cov*InSS,n.cells.x,n.cells.y),main="D.cov",xlab="X"
 K <- 12
 #Let's implement a state space buffer and only sample inside that.
 #buffer should be at least 3sigma (which we haven't defined, yet, I use 7.8 below)
-target.sigma <- 1
+target.sigma <- 2
 search.buff <- 1*(dists<(rad-3*target.sigma))
 
 #but let's consider we don't survey the entire state space on each occasion
@@ -67,18 +72,30 @@ idx.list[[1]] <- which(dSS[,1]<split.x&dSS[,2]<split.y&search.buff)
 idx.list[[2]] <- which(dSS[,1]<split.x&dSS[,2]>=split.y&search.buff)
 idx.list[[3]] <- which(dSS[,1]>=split.x&dSS[,2]>=split.y&search.buff)
 idx.list[[4]] <- which(dSS[,1]>=split.x&dSS[,2]<split.y&search.buff)
-#must have replication, using same survey cells as above
+#1st replication, using same survey cells as above
 idx.list[[5]] <- idx.list[[1]]
 idx.list[[6]] <- idx.list[[2]]
 idx.list[[7]] <- idx.list[[3]]
 idx.list[[8]] <- idx.list[[4]]
-#adding 4 more
+#2nd replication, using same survey cells as above
 idx.list[[9]] <- idx.list[[1]]
 idx.list[[10]] <- idx.list[[2]]
 idx.list[[11]] <- idx.list[[3]]
 idx.list[[12]] <- idx.list[[4]]
 
-set.seed(3356735)
+#moved remaining simulation effort to after setting seed for data set
+
+D.beta0 <- -4.5 #baseline D
+D.beta1 <- 1.0 #density coefficient 
+rsf.beta <- 1.5 #rsf coefficient
+beta.p.int <- -0.5 #baseline detection prob
+beta.p.effort <- 2.5 #effort effect on detection prob
+sigma <- 2 #spatial scale of availability distribution
+n.tel.inds <- 10 #number of telemetry individuals
+K.tel <- 15 #number of telemetry locations per individual
+
+set.seed(32348) #change this for new data set
+
 effort <- survey <- matrix(0,n.cells,K)
 for(k in 1:K){
   obj <- Exp.image.cov(grid=grid,aRange=5,setup=TRUE)
@@ -88,7 +105,7 @@ for(k in 1:K){
 }
 
 #visualize effort summed over all occasions
-image(x.vals,y.vals,matrix(rowSums(effort),n.cells.x,n.cells.y),main="Search Effort",xlab="X",ylab="Y",col=cols2)
+# image(x.vals,y.vals,matrix(rowSums(effort),n.cells.x,n.cells.y),main="Search Effort",xlab="X",ylab="Y",col=cols2)
 
 # visualize effort on each occasion, scroll through k,
 # can see different areas surveyed on each occasions 1-4 and 5-8
@@ -99,22 +116,11 @@ image(x.vals,y.vals,matrix(rowSums(effort),n.cells.x,n.cells.y),main="Search Eff
 #scale effort, but only in surveyed cell/occasions
 effort[survey==1] <- as.numeric(scale(effort[survey==1]))
 
-
-D.beta0 <- -2.675 #baseline D
-D.beta1 <- 1.0 #density coefficient 
-rsf.beta <- 1.5 #rsf coefficient
-beta.p.int <- -1.75 #baseline detection prob
-beta.p.effort <- 1.5 #effort effect on detection prob
-sigma <- 1 #spatial scale of availability distribution
-n.tel.inds <- 10 #number of telemetry individuals
-K.tel <- 15 #number of telemetry locations per individual
-
 #visualize distribution of p across cells given search effort and detection parameters
-p.test <- plogis(beta.p.int + beta.p.effort*effort)
-par(mfrow=c(1,1),ask=FALSE)
-hist(p.test[survey==1])
+# p.test <- plogis(beta.p.int + beta.p.effort*effort)
+# par(mfrow=c(1,1),ask=FALSE)
+# hist(p.test[survey==1])
 
-set.seed(32348) #change seed for new data set
 data <- sim.RY(D.beta0=D.beta0,D.beta1=D.beta1,rsf.beta=rsf.beta,
                sigma=sigma,beta.p.int=beta.p.int,beta.p.effort=beta.p.effort,
                xlim=xlim,ylim=ylim,res=res,InSS=InSS,D.cov=D.cov,rsf.cov=rsf.cov,
@@ -131,6 +137,7 @@ table(rowSums(data$capture$y)) #number of inds captures X times
 hist(data$summaries$p.marg.i,breaks=50,main="Individual Cumulative Detection Probabilities|Search Effort",
      xlim=c(0,1),xlab="Detection Prob")
 
+
 #can inspect every individual's availability and use distributions
 #useful to check if simulated behavior is realistic
 # par(mfrow=c(2,1)) #if you want to plot availability over use
@@ -141,26 +148,20 @@ hist(data$summaries$p.marg.i,breaks=50,main="Individual Cumulative Detection Pro
 # par(mfrow=c(1,1)) #set back
 
 ##Fit Model
-library(nimble)
-library(coda)
-nimbleOptions(determinePredictiveNodesInModel = FALSE)
-source("init.data.RY.unknownID.R")
-source("NimbleModel unknownID.R")
-source("sSampler Dcov RSF Marginal.R")
-M <- 350 #data augmentation limit. Must be larger than simulated N. If N posterior hits M, need to raise M and try again.
+M <- 300 #data augmentation limit. Must be larger than simulated N. If N posterior hits M, need to raise M and try again.
 if(M<=data$truth$N)stop("Raise M to be larger than simulated N.")
 
-inits <- list(sigma=1) #needs to be set somewhere in the ballpark of truth
-nimbuild <- init.data.RY.unknownID(data=data,inits=inits,M=M)
-n.samples <- nimbuild$n.samples
+inits <- list(sigma=5) #needs to be set somewhere in the ballpark of truth
+nimbuild <- init.data.RY.unknownID(data=data,inits=inits,M=M) 
+n.samples <- nimbuild$n.samples 
 
-#plot initialized data
-plot(nimbuild$s,pch=16,xlim=data$xlim,ylim=data$ylim,col="grey")
-points(nimbuild$s[nimbuild$z==1,1],nimbuild$s[nimbuild$z==1,2],pch=16,cex=1.25)
-for(l in 1:n.samples){
-  points(data$u.obs[l,1],data$u.obs[l,2],pch=16,col="lightblue",cex=0.75)
-  lines(x=c(data$u.obs[l,1],nimbuild$s[nimbuild$ID[l],1]),
-        y=c(data$u.obs[l,2],nimbuild$s[nimbuild$ID[l],2]))
+#Plot initial latent-ID allocation. 
+plot(nimbuild$s,pch=16,xlim=data$constants$xlim,ylim=data$constants$ylim,col="grey") 
+points(nimbuild$s[nimbuild$z==1,1],nimbuild$s[nimbuild$z==1,2],pch=16,cex=1.25) 
+for(l in 1:n.samples){ 
+  points(data$capture$u.obs2D[l,1],data$capture$u.obs2D[l,2],pch=16,col="lightblue",cex=0.75) 
+  lines(x=c(data$capture$u.obs2D[l,1],nimbuild$s[nimbuild$ID[l],1]), 
+        y=c(data$capture$u.obs2D[l,2],nimbuild$s[nimbuild$ID[l],2])) 
 }
 
 n.surveyed.cells <- colSums(survey)
@@ -172,189 +173,162 @@ for(k in 1:K){
   surveyed.cells.effort[1:n.surveyed.cells[k],k] <- effort[surveyed.cells[1:n.surveyed.cells[k],k],k]
 }
 
-#map specific u.cell to surveyed cells- I do this for known ID,
-#not doing for unknown ID because i index of u.cell changes
+x.vals.edges <- c(data$constants$x.vals-data$constants$res/2,
+                  data$constants$x.vals[data$constants$n.cells.x]+data$constants$res/2)
+y.vals.edges <- c(data$constants$y.vals-data$constants$res/2,
+                  data$constants$y.vals[data$constants$n.cells.y]+data$constants$res/2)
+#standard-normal cutoff for trimming negligible movement availability outside +/- avail.z SD
+avail.z <- qnorm(1-1e-10)
 
-#map all surveyed cells to true cells
-survey.map <- matrix(0,n.cells,K)
+#precompute x/y cell indices for surveyed cells so dRYmarg does not need to do cell-index conversion for nondetections.
+surveyed.cell.x <- matrix(0,max.surveyed.cells,K)
+surveyed.cell.y <- matrix(0,max.surveyed.cells,K)
 for(k in 1:K){
   for(c in 1:n.surveyed.cells[k]){
-    tmp <- surveyed.cells[c,k]
-    survey.map[tmp,k] <- c
+    this.cell <- surveyed.cells[c,k]
+    this.x <- this.cell%%data$constants$n.cells.x
+    this.y <- floor(this.cell/data$constants$n.cells.x)+1
+    if(this.x==0){
+      this.x <- data$constants$n.cells.x
+      this.y <- this.y-1
+    }
+    surveyed.cell.x[c,k] <- this.x
+    surveyed.cell.y[c,k] <- this.y
   }
 }
 
-#GPS locs
-u.tel <- data$telemetry$u.tel
-n.tel.inds <- nrow(u.tel)
-n.locs.ind <- rowSums(!is.na(u.tel[,,1]))
-n.locs.max <- max(n.locs.ind)
-xlim.GPS <- range(u.tel[,,1],na.rm=TRUE) + c(-1,1) #add small arbitrary buffer for edge points
-ylim.GPS <- range(u.tel[,,2],na.rm=TRUE) + c(-1,1)
-
-points(u.tel[,,1],u.tel[,,2],pch=".",col="darkred",cex=3)
-
-#Need u.cell.tel data for rsf
-u.cell.tel <- matrix(NA,n.tel.inds,n.locs.max)
-for(i in 1:n.tel.inds){
-  for(k in 1:n.locs.ind[i]){
-    u.cell.tel[i,k] <- getCellR(u.tel[i,k,],data$constants$res,data$constants$cells,xlim.GPS,ylim.GPS)
-  }
-}
-any(u.cell.tel==0,na.rm=TRUE) #should be false
-
-#these are observed, derived from u.cell.tel
-dSS <- data$constants$dSS
-u.xlim.tel <- u.ylim.tel <- array(0,dim=c(n.tel.inds,n.locs.max,2))
-for(i in 1:n.tel.inds){
-  for(k in 1:n.locs.ind[i]){
-    u.xlim.tel[i,k,1] <- dSS[u.cell.tel[i,k],1]-res/2
-    u.xlim.tel[i,k,2] <- dSS[u.cell.tel[i,k],1]+res/2
-    u.ylim.tel[i,k,1] <- dSS[u.cell.tel[i,k],2]-res/2
-    u.ylim.tel[i,k,2] <- dSS[u.cell.tel[i,k],2]+res/2
-  }
-}
+#Latent-ID initializer stores both absolute u.cell and sparse u.cell.survey so they can be swapped together.
+all(nimbuild$u.cell.survey[nimbuild$u.cell!=0]>0) 
+all(nimbuild$u.cell[nimbuild$u.cell.survey!=0]>0) 
 
 Niminits <- list(z=nimbuild$z,N=nimbuild$N, #must init N to be sum(z.init)
                  s=nimbuild$s,
-                 ID=nimbuild$ID,capcounts=rowSums(nimbuild$y.true),
-                 y.true=nimbuild$y.true,N=nimbuild$N,
-                 u=nimbuild$u,u.cell=nimbuild$u.cell,
+                 ID=nimbuild$ID,capcounts=nimbuild$capcounts, 
+                 y.true=nimbuild$y.true,u=nimbuild$u, 
+                 u.cell=nimbuild$u.cell,u.cell.survey=nimbuild$u.cell.survey, 
                  D0=sum(nimbuild$z)/(sum(InSS)*res^2),D.beta1=0,
                  sigma=inits$sigma,
                  beta.p.int=c(0),beta.p.effort=c(2),
                  rsf.beta=2,
-                 s.tel=apply(data$telemetry$u.tel,c(1,3),mean,na.rm=TRUE))
+                 s.tel=nimbuild$s.tel)
 
 #constants for Nimble
-InSS.cells <- which(data$constants$InSS==1)
-n.InSS.cells <- length(InSS.cells)
-constants <- list(M=M,K=K,n.samples=n.samples,survey.map=survey.map,
-                  InSS.cells=InSS.cells,n.InSS.cells=n.InSS.cells,
+pi.cell.tel <- InSS/sum(InSS)
+constants <- list(M=M,K=K,n.samples=n.samples,
                   n.cells=data$constants$n.cells,n.cells.x=data$constants$n.cells.x,
                   n.cells.y=data$constants$n.cells.y,res=data$constants$res,
-                  x.vals=data$constants$x.vals,y.vals=data$constants$y.vals,
-                  xlim=data$constants$xlim,ylim=data$constants$ylim,
+                  x.vals.edges=x.vals.edges,y.vals.edges=y.vals.edges,avail.z=avail.z,
                   n.locs.ind=data$constants$n.locs.ind,n.tel.inds=data$constants$n.tel.inds,
-                  D.cov=D.cov,survey=survey,
-                  cellArea=data$constants$res^2,surveyed.cells=surveyed.cells,n.surveyed.cells=n.surveyed.cells,
-                  surveyed.cells.effort=surveyed.cells.effort,
-                  u.xlim.tel=data$telemetry$u.xlim.tel,
-                  u.ylim.tel=data$telemetry$u.ylim.tel)
+                  D.cov=D.cov,cellArea=data$constants$res^2,pi.cell.tel=pi.cell.tel,
+                  surveyed.cells=surveyed.cells,surveyed.cell.x=surveyed.cell.x,
+                  surveyed.cell.y=surveyed.cell.y,n.surveyed.cells=n.surveyed.cells,
+                  surveyed.cells.effort=surveyed.cells.effort)
 
 #supply data to nimble
 Nimdata <- list(y.true=matrix(NA,nrow=M,ncol=K),u=array(NA,dim=c(M,K,2)),
-                u.tel=data$telemetry$u.tel,u.cell.tel=data$telemetry$u.cell.tel,
-                cells=data$constants$cells,InSS=data$constants$InSS,
-                z=nimbuild$z,
-                dummy.data=rep(1,M),
-                rsf.cov=rsf.cov)
+                u.tel=data$telemetry$u.tel,u.cell.tel=data$telemetry$u.cell.tel, 
+                InSS=data$constants$InSS,z=nimbuild$z,rsf.cov=rsf.cov) 
 
-# set parameters to monitor
-parameters <- c('beta.p.int','beta.p.effort','rsf.beta','D.beta1',
-              'sigma','N','D0','lambda','n')
-# parameters <- c('beta.p.int','beta.p.effort','rsf.beta','D.beta1',
-#                 'sigma','N','D0','lambda','n')
+#set parameters to monitor
+parameters <- c('beta.p.int','beta.p.effort','rsf.beta','D.beta1','sigma','N','D0','lambda','n')
 
 #can also monitor a different set of parameters with a different thinning rate
 nt <- 2 #thinning rate
 
 # Build the model, configure the mcmc, and compile
-# deregisterDistributions("dRYmarg") #deregister if you previously registered known ID version
 start.time <- Sys.time()
-Rmodel <- nimbleModel(code=NimModel, constants=constants, data=Nimdata,check=FALSE,inits=Niminits)
+Rmodel <- nimbleModel(code=NimModel,constants=constants,data=Nimdata,check=FALSE,inits=Niminits)
 #tell nimble which nodes to configure so we don't waste time for samplers we will replace below
-# config.nodes <- c("beta.p.int","sigma",'D.beta0','D.beta1','rsf.beta','beta.p.effort')
-config.nodes <- c("beta.p.int","sigma",'D0','D.beta1','rsf.beta','beta.p.effort')
-conf <- configureMCMC(Rmodel,monitors=parameters, thin=nt,useConjugacy = FALSE,
-                      nodes=config.nodes) 
+config.nodes <- c("beta.p.int","beta.p.effort","sigma",'rsf.beta')
+conf <- configureMCMC(Rmodel,monitors=parameters,thin=nt,useConjugacy=FALSE,
+                      nodes=config.nodes)
 
-##Here, we remove the default sampler for y.true
-#and replace it with the custom "IDSampler".
-# conf$removeSampler("y.true")
-calcNodes.y.true <- Rmodel$getDependencies("y.true")
-calcNodes.u <- Rmodel$getDependencies("u")
-calcNodes.all <- c(calcNodes.y.true,calcNodes.u)
-map <- t(matrix(1:(M*K),K,M)) #map 2D node reference to 1D node vector calcNodes.y.true
-u.obs.cell <- rep(NA,n.samples)
-for(i in 1:n.samples){
-  u.obs.cell[i] <- getCellR(data$capture$u.obs2D[i,],data$constants$res,data$constants$cells,xlim,ylim)
+#Latent-ID sampler must run before zSampler so capcounts reflects the current ID allocation.
+y.nodes <- Rmodel$expandNodeNames("y.true")
+u.nodes <- character(M*K)
+for(k in 1:K){
+  for(i in 1:M){
+    u.idx <- i+(k-1)*M
+    u.nodes[u.idx] <- Rmodel$expandNodeNames(paste0("u[",i,",",k,",1:2]"))
+  }
 }
-conf$addSampler(target = paste0("y.true[1:",M,",1:",K,"]"),
-                type = 'IDSampler',control = list(M=M,K=K,n.samples=nimbuild$n.samples,
-                                                  u.obs.cell=u.obs.cell,map=map,
-                                                  this.k=nimbuild$this.k,
-                                                  calcNodes.y.true=calcNodes.y.true,
-                                                  calcNodes.u=calcNodes.u,
-                                                  calcNodes.all=calcNodes.all),
-                silent = TRUE)
+calcNodes.all <- unique(c(Rmodel$getDependencies("y.true"),Rmodel$getDependencies("u"))) 
+conf$addSampler(target=paste0("y.true[1:",M,",1:",K,"]"),
+                type='IDSampler',control=list(M=M,K=K,n.samples=n.samples,
+                                              this.k=nimbuild$this.k,u.obs.cell=nimbuild$obs.cell,
+                                              y.nodes=y.nodes,u.nodes=u.nodes,
+                                              calcNodes.all=calcNodes.all,
+                                              n.cells.x=data$constants$n.cells.x),
+                silent=TRUE) 
 
 ###*required* sampler replacement for "alternative data augmentation" N/z update
-z.ups <- round(M*0.5) # how many N/z proposals per iteration? Not sure what is optimal, setting to 50% of M here.
-# conf$removeSampler("N")
+z.ups <- round(M*0.25)
 #nodes used for update, calcNodes + z nodes
-y.nodes <- Rmodel$expandNodeNames(paste("y.true[1:",M,",1:",K,"]"))
-N.node <- Rmodel$expandNodeNames(paste("N"))
+y.nodes <- Rmodel$expandNodeNames("y.true") 
+N.node <- Rmodel$expandNodeNames("N")
 z.nodes <- Rmodel$expandNodeNames(paste("z[1:",M,"]"))
-calcNodes <- c(N.node,y.nodes)
-conf$addSampler(target = c("N"),
-                type = 'zSampler',control = list(z.ups=z.ups,K=K,M=M,
-                                                 y.nodes=y.nodes,N.node=N.node,z.nodes=z.nodes,
-                                                 calcNodes=calcNodes),
-                silent = TRUE)
+s.nodes <- Rmodel$expandNodeNames("s")
+calcNodes <- c(N.node,y.nodes,s.nodes)
+conf$addSampler(target=c("N"),
+                type='zSampler',control=list(z.ups=z.ups,K=K,M=M,
+                                             y.nodes=y.nodes,N.node=N.node,z.nodes=z.nodes,
+                                             s.nodes=s.nodes,calcNodes=calcNodes,
+                                             res=data$constants$res,x.vals.edges=x.vals.edges,
+                                             y.vals.edges=y.vals.edges,avail.z=avail.z,
+                                             n.cells=data$constants$n.cells,n.cells.x=data$constants$n.cells.x,
+                                             n.cells.y=data$constants$n.cells.y),
+                silent=TRUE)
 
-# replace default activity center sampler
-# conf$removeSampler(paste("s[1:",M,", 1:2]", sep=""))
+#replace default activity center sampler
 for(i in 1:M){
   calcNodes <- Rmodel$getDependencies(paste("s[",i,",1:2]"))
-  conf$addSampler(target = paste("s[",i,",1:2]", sep=""),
-                  type = 'sSamplerDcovRSF',control = list(i=i,K=K,xlim=data$constants$xlim,
-                                                          ylim=data$constants$ylim,
-                                                          n.cells.x=data$constants$n.cells.x,
-                                                          n.cells.y=data$constants$n.cells.y,
-                                                          res=data$constants$res,
-                                                          calcNodes=calcNodes), silent = TRUE)
+  conf$addSampler(target=paste("s[",i,",1:2]",sep=""),
+                  type='sSamplerDcovRSF',control=list(i=i,xlim=data$constants$xlim,
+                                                      ylim=data$constants$ylim,calcNodes=calcNodes),silent=TRUE)
 }
 
-# more efficient s sampler for telemetry inds
-# conf$removeSampler(paste("s.tel[1:",n.tel.inds,", 1:2]", sep=""))
+#more efficient s sampler for telemetry inds
 for(i in 1:data$constants$n.tel.inds){
   calcNodes.s.tel <- Rmodel$getDependencies(paste("s.tel[",i,",1:2]"))
-  conf$addSampler(target = paste("s.tel[",i,",1:2]", sep=""),
-                  type = 'sSamplerDcovRSF.tel',control = list(i=i,xlim=data$constants$xlim,
-                                                              ylim=data$constants$ylim,
-                                                              calcNodes.s.tel=calcNodes.s.tel), silent = TRUE)
+  conf$addSampler(target=paste("s.tel[",i,",1:2]",sep=""),
+                  type='sSamplerDcovRSF.tel',control=list(i=i,xlim=xlim,ylim=ylim,
+                                                          calcNodes.s.tel=calcNodes.s.tel),silent=TRUE)
 }
 
-#can try blocking D0 and beta.p.int, or all 3
-conf$addSampler(target = c("D0","D.beta1"),
-                type = 'RW_block',control=list(adaptive=TRUE),silent = TRUE)
+#obsmod is relatively expensive, so skipping AF_slice, adding RW_block
+#not always needed, check posterior correlation between them.
+conf$addSampler(target=c("beta.p.int","beta.p.effort"),
+                type='RW_block',control=list(adaptive=TRUE),silent=TRUE)
+
+conf$addSampler(target=c("D0","D.beta1"),
+                type='AF_slice',control=list(adaptive=TRUE),silent=TRUE)
 
 # Build and compile
 Rmcmc <- buildMCMC(conf)
 # runMCMC(Rmcmc,niter=1) #this will run in R, used for better debugging
 Cmodel <- compileNimble(Rmodel)
-Cmcmc <- compileNimble(Rmcmc, project = Rmodel)
+Cmcmc <- compileNimble(Rmcmc,project=Rmodel)
 
 # Run the model.
 start.time2 <- Sys.time()
 Cmcmc$run(2500,reset=FALSE) #can keep running this line to extend sampler
 end.time <- Sys.time()
-end.time - start.time  # total time for compilation, replacing samplers, and fitting
-end.time - start.time2 # post-compilation run time
+end.time-start.time
+end.time-start.time2
 
 library(coda)
 mvSamples <- as.matrix(Cmcmc$mvSamples)
-plot(mcmc(mvSamples[100:nrow(mvSamples),])) #discarding some burnin here. Can't plot 1st sample which is all NA
+burnin <- 750
+plot(mcmc(mvSamples[burnin:nrow(mvSamples),]))
 
 data$truth$lambda #target expected abundance
 data$truth$N #target realized abundance
-data$truth$n #target number detected (n)
+data$truth$n #target number detected
+mean(mvSamples[-c(1:burnin),"n"]) 
 
-par(mfrow=c(1,1),ask=FALSE)
-image(x.vals,y.vals,matrix(Cmodel$lambda.cell,n.cells.x,n.cells.y),main="Final Iteration Spatial D and ACs")
-points(Cmodel$s[Cmodel$z==1,],pch=16,cex=0.75,col="grey30")
-#truth
-image(x.vals,y.vals,matrix(data$truth$lambda.cell,length(x.vals),length(y.vals)),
-      main="Spatially Explicit D and Realized ACs",xlab="X",ylab="Y")
-points(data$truth$s,pch=16,cex=0.75,col="grey30")
+#Check posterior correlation
+rem.idx <- which(colnames(mvSamples)%in%c("N","lambda"))
+tmp <- cor(mvSamples[-c(1:burnin),-rem.idx])
+diag(tmp) <- NA
+which(abs(tmp)>0.5,arr.ind=TRUE)
+round(tmp,2)

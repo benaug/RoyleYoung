@@ -9,7 +9,7 @@ getCellR = function(u,res,cells,xlim,ylim){
 }
 
 init.data.RY.knownID <- function(data=NA,M=NA,inits=NA){
-  data <- c(data$constants,data$capture) #restructure data list
+  data <- c(data$constants,data$capture,data$telemetry)
   u.obs <- data$u.obs
   K <- data$K
   xlim <- data$xlim
@@ -48,5 +48,31 @@ init.data.RY.knownID <- function(data=NA,M=NA,inits=NA){
       s.init[i,] <- dSS[pick,]
     }
   }
-  return(list(y=y,u=u,u.cell=u.cell,z=z.init,s=s.init,N=sum(z.init)))
+  #z=0 individuals have activity centers fixed at 0
+  s.init[z.init==0,] <- 0
+  #initialize telemetry ACs from observed locations and move any outside InSS to the nearest valid cell.
+  s.tel.init <- apply(data$u.tel,c(1,3),mean,na.rm=TRUE) 
+  for(i in 1:data$n.tel.inds){ 
+    s.cell.init <- getCellR(s.tel.init[i,],data$res,cells,xlim,ylim) 
+    if(InSS[s.cell.init]==0){ 
+      dists <- sqrt((dSS[s.cell.init,1]-dSS[,1])^2+(dSS[s.cell.init,2]-dSS[,2])^2) 
+      dists[InSS==0] <- Inf 
+      pick <- which(dists==min(dists))[1] 
+      s.tel.init[i,] <- dSS[pick,] 
+    } 
+  } 
+
+  #flatten observed continuous locations so the fitted model only creates duInCell nodes for detections
+  obs.idx <- which(y==1,arr.ind=TRUE)
+  obs.ID <- obs.idx[,1]
+  obs.k <- obs.idx[,2]
+  n.samples <- nrow(obs.idx)
+  obs.cell <- rep(0,n.samples)
+  u.obs2D <- matrix(NA,nrow=n.samples,ncol=2)
+  for(l in 1:n.samples){
+    obs.cell[l] <- u.cell[obs.ID[l],obs.k[l]]
+    u.obs2D[l,] <- u[obs.ID[l],obs.k[l],]
+  }
+  return(list(y=y,u=u,u.cell=u.cell,z=z.init,s=s.init,s.tel=s.tel.init,N=sum(z.init),
+              obs.ID=obs.ID,obs.k=obs.k,obs.cell=obs.cell,u.obs2D=u.obs2D,n.samples=n.samples))
 }

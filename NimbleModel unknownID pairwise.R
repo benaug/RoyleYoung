@@ -13,7 +13,11 @@ NimModel <- nimbleCode({
   #detection coefficients
   beta.p.int ~ dlogis(0,1)
   beta.p.effort ~ dnorm(0,sd=10)
-  #--------------------------------------------------------------
+  #pairwise match-score means
+  for(q in 1:2){
+    lambda.match[q] ~ dunif(0,50) # q=1 same ID, q=2 different ID
+  }
+  
   #Density model
   D.intercept <- D0*cellArea
   # D.intercept <- exp(D.beta0)*cellArea
@@ -54,21 +58,18 @@ NimModel <- nimbleCode({
                                 avail.y=avail.y[i,1:n.cells.y],n.cells.x=n.cells.x,n.cells.y=n.cells.y,z=z[i])
 
     for(k in 1:K){
-      y[i,k] ~ dRYmargFactored(u.cell.survey=u.cell.survey[i,k],z=z[i],
-                               p.rsf=p.rsf[1:n.surveyed.cells[k],k],
-                               surveyed.cell.x=surveyed.cell.x[1:n.surveyed.cells[k],k],
-                               surveyed.cell.y=surveyed.cell.y[1:n.surveyed.cells[k],k],
-                               n.surveyed.cells=n.surveyed.cells[k],
-                               avail.x=avail.x[i,1:n.cells.x],avail.y=avail.y[i,1:n.cells.y],
-                               use.denom=use.denom[i])
+      #Latent-ID detection state; IDSampler moves detections among individual-occasion slots.
+      y.true[i,k] ~ dRYmargFactored(u.cell.survey=u.cell.survey[i,k],z=z[i],
+                                    p.rsf=p.rsf[1:n.surveyed.cells[k],k],
+                                    surveyed.cell.x=surveyed.cell.x[1:n.surveyed.cells[k],k], 
+                                    surveyed.cell.y=surveyed.cell.y[1:n.surveyed.cells[k],k], 
+                                    n.surveyed.cells=n.surveyed.cells[k], 
+                                    avail.x=avail.x[i,1:n.cells.x],avail.y=avail.y[i,1:n.cells.y], 
+                                    use.denom=use.denom[i]) 
+      #Latent-ID continuous location likelihood. Nondetection slots have u.cell=0 and contribute 0
+      u[i,k,1:2] ~ duInCell(s=s[i,1:2],u.cell=u.cell[i,k],sigma=sigma,n.cells.x=n.cells.x,res=res,
+                            avail.x=avail.x[i,1:n.cells.x],avail.y=avail.y[i,1:n.cells.y])
     }
-  }
-  #continuous location likelihoods for detections
-  for(l in 1:n.samples){
-    u.obs[l,1:2] ~ duInCell(s=s[obs.ID[l],1:2],u.cell=u.obs.cell[l],sigma=sigma,
-                            n.cells.x=n.cells.x,res=res,
-                            avail.x=avail.x[obs.ID[l],1:n.cells.x],
-                            avail.y=avail.y[obs.ID[l],1:n.cells.y])
   }
 
   #telemetry - could use these for mark-resight if random sample w.r.t. space or marking process is modeled
@@ -89,4 +90,17 @@ NimModel <- nimbleCode({
                                                       sigma=sigma,rsf=rsf[1:n.cells],use.denom=use.denom.tel[i],
                                                       n.cells.x=n.cells.x,n.locs.ind=n.locs.ind[i])
   }
+
+  #Pairwise sample-level match scores
+  #Only the upper triangle matrix is modeled because each unordered sample pair appears once.
+  for(l1 in 1:(n.samples-1)){
+    for(l2 in (l1+1):n.samples){
+      match.type[l1,l2] <- 1*equals(ID[l1],ID[l2]) + 2*(1-equals(ID[l1],ID[l2]))
+      scores[l1,l2] ~ dpois(lambda.match[match.type[l1,l2]])
+    }
+  }
+
+  #Latent-ID derived variables.
+  capcounts[1:M] <- Getcapcounts(y.true=y.true[1:M,1:K])
+  n <- Getncap(capcounts=capcounts[1:M],ID=ID[1:n.samples])
 })
