@@ -295,7 +295,7 @@ getP <- nimbleFunction(
 #truncated Normal combined. The availability cell masses cancel
 dTelemetryFactored <- nimbleFunction(
   run = function(x = double(2),u.cell = double(1),s = double(1),sigma = double(0),
-                 rsf = double(1),use.denom = double(0),n.cells.x = integer(0),
+                 rsf = double(1),use.denom = double(0),
                  n.locs.ind = double(0),log = integer(0)) {
     returnType(double(0))
     if(use.denom<=0){
@@ -316,7 +316,7 @@ dTelemetryFactored <- nimbleFunction(
 
 rTelemetryFactored <- nimbleFunction(
   run = function(n = integer(0),u.cell = double(1),s = double(1),sigma = double(0),
-                 rsf = double(1),use.denom = double(0),n.cells.x = integer(0),
+                 rsf = double(1),use.denom = double(0),
                  n.locs.ind = double(0)) {
     returnType(double(2))
     return(matrix(0,n.locs.ind,2))

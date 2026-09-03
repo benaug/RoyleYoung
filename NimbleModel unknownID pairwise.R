@@ -88,7 +88,7 @@ NimModel <- nimbleCode({
     #Cell-use probability and within-cell truncation cancel for telemetry locations.
     u.tel[i,1:n.locs.ind[i],1:2] ~ dTelemetryFactored(u.cell=u.cell.tel[i,1:n.locs.ind[i]],s=s.tel[i,1:2],
                                                       sigma=sigma,rsf=rsf[1:n.cells],use.denom=use.denom.tel[i],
-                                                      n.cells.x=n.cells.x,n.locs.ind=n.locs.ind[i])
+                                                      n.locs.ind=n.locs.ind[i])
   }
 
   #Pairwise sample-level match scores
