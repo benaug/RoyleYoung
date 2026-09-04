@@ -50,8 +50,7 @@ where $\sigma$ controls the spatial scale of within-home-range use. Resource sel
 
 $$
 P(\mathbf{u}_{ik}\in c\mid\mathbf{s}_i,\sigma,
-\boldsymbol{\beta}^{\mathrm{RSF}})
-=
+\boldsymbol{\beta}^{\mathrm{RSF}}) =
 \frac{r_c a_{ic}}
 {\sum_{h=1}^{C}r_h a_{ih}}.
 $$
@@ -59,8 +58,7 @@ $$
 Conditional on $\mathbf{u}_{ik}$ occurring in cell $c$, its continuous location within that cell follows the bivariate normal availability distribution truncated to the cell boundaries,
 
 $$
-f(\mathbf{u}_{ik}\mid\mathbf{u}_{ik}\in c,\mathbf{s}_i,\sigma)
-=
+f(\mathbf{u}_{ik}\mid\mathbf{u}_{ik}\in c,\mathbf{s}_i,\sigma) =
 \frac{
 f_{\mathrm{BVN}}(\mathbf{u}_{ik}\mid\mathbf{s}_i,\sigma)
 }{
@@ -73,8 +71,7 @@ Combining the RSF-weighted probability of using cell $c$ with the conditional wi
 
 $$
 f(\mathbf{u}_{ik}\mid\mathbf{s}_i,\sigma,
-\boldsymbol{\beta}^{\mathrm{RSF}})
-=
+\boldsymbol{\beta}^{\mathrm{RSF}}) =
 \frac{
 r_c f_{\mathrm{BVN}}(\mathbf{u}_{ik}\mid\mathbf{s}_i,\sigma)
 }{
@@ -96,8 +93,7 @@ A direct implementation of the marginal model could calculate and store $a_{ic}$
 For the isotropic bivariate normal kernel used here, the $x$ and $y$ dimensions are independent. Thus, the probability mass of a rectangular grid cell factors exactly into one-dimensional probabilities. If cell $c$ corresponds to x-cell $j(c)$ and y-cell $k(c)$,
 
 $$
-a_{ic}
-=
+a_{ic} =
 a^x_{i,j(c)}
 a^y_{i,k(c)},
 $$
@@ -105,16 +101,14 @@ $$
 where
 
 $$
-a^x_{ij}
-=
+a^x_{ij} =
 P(x\in\text{x-cell }j\mid s_{i,x},\sigma)
 $$
 
 and
 
 $$
-a^y_{ik}
-=
+a^y_{ik} =
 P(y\in\text{y-cell }k\mid s_{i,y},\sigma).
 $$
 
@@ -123,8 +117,7 @@ Each one-dimensional probability is calculated from differences in normal CDF va
 The RSF normalizing constant is then
 
 $$
-D_i
-=
+D_i =
 \sum_{c=1}^{C}
 r_c
 a^x_{i,j(c)}
@@ -134,8 +127,7 @@ $$
 The probability that the continuous realized location occurs in any particular cell can be reconstructed when needed as
 
 $$
-P(\mathbf{u}_{ik}\in c\mid\mathbf{s}_i)
-=
+P(\mathbf{u}_{ik}\in c\mid\mathbf{s}_i) =
 \frac{
 r_c
 a^x_{i,j(c)}
@@ -148,8 +140,7 @@ $$
 For a detected individual, the exact continuous location $\mathbf{u}_{ik}$ is observed. Within its cell, the continuous bivariate normal density factors into independent x- and y-normal densities. When the cell-use probability and the conditional within-cell density are combined, the cell availability term $a_{ic}$ cancels with the truncation normalization. The continuous likelihood contribution for a detected location in cell $c$ can therefore be written as
 
 $$
-f(\mathbf{u}_{ik}\mid\mathbf{s}_i)
-=
+f(\mathbf{u}_{ik}\mid\mathbf{s}_i) =
 \frac{
 r_c
 \phi(u_{ik,x}\mid s_{i,x},\sigma)
@@ -180,16 +171,14 @@ These models use N-prior data augmentation rather than conventional binomial dat
 Expected abundance is determined by the spatial density model. For example, with a single density covariate,
 
 $$
-D_c
-=
+D_c =
 D_0\exp(\beta^{D}x_c),
 $$
 
 and expected abundance over the state space is
 
 $$
-\lambda
-=
+\lambda =
 D_0
 \sum_{c=1}^{C}
 A_c I_c\exp(\beta^{D}x_c),
@@ -212,8 +201,7 @@ $$
 and
 
 $$
-D_0'
-=
+D_0' =
 D_0\frac{N+1}{N}.
 $$
 
@@ -226,24 +214,21 @@ $$
 and
 
 $$
-D_0'
-=
+D_0' =
 D_0\frac{N-1}{N}.
 $$
 
 Because $\lambda$ is proportional to $D_0$, this produces
 
 $$
-\lambda'
-=
+\lambda' =
 \lambda\frac{N'}{N},
 $$
 
 and therefore preserves
 
 $$
-\frac{\lambda'}{N'}
-=
+\frac{\lambda'}{N'} =
 \frac{\lambda}{N}.
 $$
 
@@ -254,8 +239,7 @@ Because the proposal for $D_0$ is a deterministic multiplicative transformation,
 $$
 \left|
 \frac{\partial D_0'}{\partial D_0}
-\right|
-=
+\right| =
 \frac{N'}{N}.
 $$
 
@@ -276,8 +260,7 @@ $$
 then
 
 $$
-D_{\beta0}'
-=
+D_{\beta0}' =
 D_{\beta0}
 +
 \log\left(\frac{N'}{N}\right).
