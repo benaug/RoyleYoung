@@ -166,7 +166,7 @@ When an activity center or $\sigma$ changes, the appropriate one-dimensional ava
 
 ## Gating activity centers and space use by population membership
 
-The activity center and within home range space use components are gated by the data augmentation indicator $z_i$. When $z_i=0$, the individual's activity center, one-dimensional availability vectors, and use normalizing constant are set to zero and contribute no likelihood. When an augmented individual is turned on, its activity center and associated space use quantities are initialized jointly with $z_i$.
+The activity center and within home range space use components are gated by the data augmentation indicator $z_i$. When $z_i=0$, the individual's activity center, one-dimensional availability vectors, and use normalizing constant are set to zero and contribute no likelihood. When an augmented individual is turned on, its activity center and associated space use quantities are proposed jointly with $z_i$.
 
 This avoids maintaining and updating latent activity centers and space use distributions for augmented individuals that are not currently part of the population. In these models this reduces unnecessary calculations and improves MCMC efficiency.
 
