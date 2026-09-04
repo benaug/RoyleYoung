@@ -3,8 +3,8 @@ NimModel <- nimbleCode({
   # priors
   #--------------------------------------------------------------
   #Density covariates
-  D0 ~ dunif(0,100) #uninformative, diffuse dnorm on log scale can cause neg bias
-  # D.beta0 ~ dnorm(0,sd=10)
+  D0 ~ dunif(0,100) #diffuse dnorm on log scale can cause neg bias in N
+  # D.beta0 ~ dnorm(0,sd=10) #if you switch to this, you must modify joint abundance-density update to use D.beta0 instead of D0
   D.beta1 ~ dnorm(0,sd=10)
   #RSF coefficients
   rsf.beta ~ dnorm(0,sd=10) 

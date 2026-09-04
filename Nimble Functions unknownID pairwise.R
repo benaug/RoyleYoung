@@ -557,6 +557,203 @@ zSampler <- nimbleFunction(
   methods = list(reset=function(){})
 )
 
+#This one does a joint N/z + D0 ridge proposal
+#to better target post correlation between D0 and N
+#This approach uses a deterministic joint proposal that rescales the density intercept when
+#abundance changes, similar to centered proposal constructions for improving
+#between-state moves in reversible-jump MCMC (Brooks et al. 2003).
+zSampler2 <- nimbleFunction(
+  contains = sampler_BASE,
+  setup = function(model, mvSaved, target, control) {
+    M <- control$M
+    K <- control$K
+    z.ups <- control$z.ups
+    y.nodes <- control$y.nodes
+    s.nodes <- control$s.nodes
+    N.node <- control$N.node
+    z.nodes <- control$z.nodes
+    calcNodes <- control$calcNodes
+    res <- control$res
+    x.vals.edges <- control$x.vals.edges
+    y.vals.edges <- control$y.vals.edges
+    avail.z <- control$avail.z
+    n.cells <- control$n.cells
+    n.cells.x <- control$n.cells.x
+    n.cells.y <- control$n.cells.y
+    D0.node <- model$expandNodeNames("D0")
+    D.intercept.node <- model$expandNodeNames("D.intercept")
+    lambda.node <- model$expandNodeNames("lambda")
+    density.nodes <- c(D0.node,D.intercept.node,lambda.node,N.node)
+    # density.nodes <- model$getDependencies("D0")
+  },
+  run = function() {
+    #Build undetected on/off lists once, then update after accepted proposals.
+    #Detected status is dynamic under latent ID, so use the current capcounts.
+    #Individuals with currently assigned detections are never included in z.on.
+    z.on <- rep(0,M)
+    z.off <- rep(0,M)
+    non.curr <- 0
+    noff.curr <- 0
+    for(i in 1:M){
+      if(model$capcounts[i]==0){
+        if(model$z[i]==1){
+          non.curr <- non.curr+1
+          z.on[non.curr] <- i
+        }else{
+          noff.curr <- noff.curr+1
+          z.off[noff.curr] <- i
+        }
+      }
+    }
+    
+    for(up in 1:z.ups){
+      updown <- rbinom(1,1,0.5)
+      if(updown==0){ #subtract
+        non.init <- non.curr
+        if(non.init>0){
+          pick.pos <- rcat(1,rep(1/non.init,non.init))
+          pick <- z.on[pick.pos]
+          N.init <- model$N[1]
+          D0.init <- model$D0[1]
+          
+          #get initial logprobs for density branch and y.true
+          lp.initial.density <- model$getLogProb(density.nodes)
+          lp.initial.y <- 0
+          for(k in 1:K){
+            y.idx <- pick+(k-1)*M
+            lp.initial.y <- lp.initial.y + model$getLogProb(y.nodes[y.idx])
+          }
+          
+          #propose new N/z, move D0 along N-D0 ridge, and set unique inactive AC state
+          model$N[1] <<- model$N[1]-1
+          model$z[pick] <<- 0
+          model$D0[1] <<- D0.init*(N.init-1)/N.init
+          model$s[pick,1:2] <<- c(0,0)
+          model$avail.x[pick,1:n.cells.x] <<- rep(0,n.cells.x)
+          model$avail.y[pick,1:n.cells.y] <<- rep(0,n.cells.y)
+          model$use.denom[pick] <<- 0
+          
+          #get proposed logprob for density branch
+          lp.proposed.density <- model$calculate(density.nodes)
+          #the y.true logProb is 0 when z=0 because this individual has capcounts=0
+          lp.proposed.y <- 0
+          
+          #s target and proposal terms cancel; combinatorial/proposal correction is non.init/N.init
+          #Jacobian for D0' = D0*(N.init-1)/N.init is (N.init-1)/N.init
+          log_MH_ratio <- (lp.proposed.density+lp.proposed.y)-(lp.initial.density+lp.initial.y)+
+            log(non.init/N.init)+log((N.init-1)/N.init)
+          accept <- decide(log_MH_ratio)
+          
+          if(accept){
+            #calculate y.true and s now to synchronize accepted model logProbs
+            for(k in 1:K){
+              y.idx <- pick+(k-1)*M
+              model$calculate(y.nodes[y.idx])
+            }
+            model$calculate(s.nodes[pick])
+            copy(from=model,to=mvSaved,row=1,nodes=density.nodes,logProb=TRUE)
+            mvSaved["z",1][pick] <<- model[["z"]][pick]
+            mvSaved["s",1][pick,1:2] <<- model[["s"]][pick,1:2]
+            mvSaved["avail.x",1][pick,1:n.cells.x] <<- model[["avail.x"]][pick,1:n.cells.x]
+            mvSaved["avail.y",1][pick,1:n.cells.y] <<- model[["avail.y"]][pick,1:n.cells.y]
+            mvSaved["use.denom",1][pick] <<- model[["use.denom"]][pick]
+            z.on[pick.pos] <- z.on[non.curr]
+            z.on[non.curr] <- 0
+            non.curr <- non.curr-1
+            noff.curr <- noff.curr+1
+            z.off[noff.curr] <- pick
+          }else{
+            copy(from=mvSaved,to=model,row=1,nodes=density.nodes,logProb=TRUE)
+            model[["z"]][pick] <<- mvSaved["z",1][pick]
+            model[["s"]][pick,1:2] <<- mvSaved["s",1][pick,1:2]
+            model[["avail.x"]][pick,1:n.cells.x] <<- mvSaved["avail.x",1][pick,1:n.cells.x]
+            model[["avail.y"]][pick,1:n.cells.y] <<- mvSaved["avail.y",1][pick,1:n.cells.y]
+            model[["use.denom"]][pick] <<- mvSaved["use.denom",1][pick]
+          }
+        }
+      }else{ #add
+        if(model$N[1]<M){
+          noff.init <- noff.curr
+          if(noff.init>0){
+            pick.pos <- rcat(1,rep(1/noff.init,noff.init))
+            pick <- z.off[pick.pos]
+            N.init <- model$N[1]
+            D0.init <- model$D0[1]
+            
+            #get initial logprobs for density branch
+            lp.initial.density <- model$getLogProb(density.nodes)
+            lp.initial.y <- 0
+            
+            #propose new N/z and move D0 along N-D0 ridge
+            model$N[1] <<- model$N[1]+1
+            model$z[pick] <<- 1
+            model$D0[1] <<- D0.init*(N.init+1)/N.init
+            
+            #propose s from its dAC model prior when the individual is turned on
+            model$s[pick,1:2] <<- rAC(1,pi.cell=model$pi.cell[1:n.cells],res=res,
+                                      n.cells.x=n.cells.x,n.cells.y=n.cells.y,z=1)
+            model$avail.x[pick,1:n.cells.x] <<- getAvail1D(s=model$s[pick,1],sigma=model$sigma[1],res=res,
+                                                           vals.edges=x.vals.edges,n.cells=n.cells.x,
+                                                           avail.z=avail.z,z=1)
+            model$avail.y[pick,1:n.cells.y] <<- getAvail1D(s=model$s[pick,2],sigma=model$sigma[1],res=res,
+                                                           vals.edges=y.vals.edges,n.cells=n.cells.y,
+                                                           avail.z=avail.z,z=1)
+            model$use.denom[pick] <<- getUseDenom(rsf=model$rsf[1:n.cells],
+                                                  avail.x=model$avail.x[pick,1:n.cells.x],
+                                                  avail.y=model$avail.y[pick,1:n.cells.y],
+                                                  n.cells.x=n.cells.x,n.cells.y=n.cells.y,z=1)
+            
+            #get proposed logprobs for density branch and y.true
+            lp.proposed.density <- model$calculate(density.nodes)
+            lp.proposed.y <- 0
+            for(k in 1:K){
+              y.idx <- pick+(k-1)*M
+              lp.proposed.y <- lp.proposed.y + model$calculate(y.nodes[y.idx])
+            }
+            
+            #s target and proposal terms cancel; combinatorial/proposal correction is (N.init+1)/(non.curr+1)
+            #Jacobian for D0' = D0*(N.init+1)/N.init is (N.init+1)/N.init
+            log_MH_ratio <- (lp.proposed.density+lp.proposed.y)-(lp.initial.density+lp.initial.y)+
+              log((N.init+1)/(non.curr+1))+log((N.init+1)/N.init)
+            accept <- decide(log_MH_ratio)
+            
+            if(accept){
+              model$calculate(s.nodes[pick])
+              copy(from=model,to=mvSaved,row=1,nodes=density.nodes,logProb=TRUE)
+              mvSaved["z",1][pick] <<- model[["z"]][pick]
+              mvSaved["s",1][pick,1:2] <<- model[["s"]][pick,1:2]
+              mvSaved["avail.x",1][pick,1:n.cells.x] <<- model[["avail.x"]][pick,1:n.cells.x]
+              mvSaved["avail.y",1][pick,1:n.cells.y] <<- model[["avail.y"]][pick,1:n.cells.y]
+              mvSaved["use.denom",1][pick] <<- model[["use.denom"]][pick]
+              z.off[pick.pos] <- z.off[noff.curr]
+              z.off[noff.curr] <- 0
+              noff.curr <- noff.curr-1
+              non.curr <- non.curr+1
+              z.on[non.curr] <- pick
+            }else{
+              copy(from=mvSaved,to=model,row=1,nodes=density.nodes,logProb=TRUE)
+              model[["z"]][pick] <<- mvSaved["z",1][pick]
+              model[["s"]][pick,1:2] <<- mvSaved["s",1][pick,1:2]
+              model[["avail.x"]][pick,1:n.cells.x] <<- mvSaved["avail.x",1][pick,1:n.cells.x]
+              model[["avail.y"]][pick,1:n.cells.y] <<- mvSaved["avail.y",1][pick,1:n.cells.y]
+              model[["use.denom"]][pick] <<- mvSaved["use.denom",1][pick]
+              for(k in 1:K){
+                y.idx <- pick+(k-1)*M
+                model$calculate(y.nodes[y.idx])
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    #copy back to mvSaved once to synchronize all calcNode values/logProbs
+    copy(from=model,to=mvSaved,row=1,nodes=calcNodes,logProb=TRUE)
+    copy(from=model,to=mvSaved,row=1,nodes=density.nodes,logProb=TRUE)
+  },
+  methods = list(reset=function(){})
+)
+
 #Latent-ID update.
 #proposal weights are computed from the factored use representation
 #Pairwise match-score likelihoods are included in each ID proposal
@@ -718,4 +915,5 @@ IDSampler <- nimbleFunction(
   },
   methods = list(reset=function(){})
 )
+
 

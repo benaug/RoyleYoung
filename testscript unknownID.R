@@ -2,10 +2,10 @@ library(nimble)
 library(truncnorm)
 library(coda)
 source("sim.RY.R")
-source("Nimble Functions unknownID V2.R")
-source("init.data.RY.unknownID V2.R")
-source("NimbleModel unknownID V2.R")
-source("Nimble Functions unknownID V2.R")
+source("Nimble Functions unknownID.R")
+source("init.data.RY.unknownID.R")
+source("NimbleModel unknownID.R")
+source("Nimble Functions unknownID.R")
 source("sSampler Dcov RSF Marginal.R")
 nimbleOptions(determinePredictiveNodesInModel = FALSE) #must run this line
 
@@ -262,22 +262,39 @@ conf$addSampler(target=paste0("y.true[1:",M,",1:",K,"]"),
                 silent=TRUE) 
 
 ###*required* sampler replacement for "alternative data augmentation" N/z update
-z.ups <- round(M*0.25)
+#Must use at least one zSampler. "zSampler" proposes N/z independent of D0
+#"zSampler2" proposes N/z jointly with D0. This is useful when posterior correlation between D0
+#and N is high. It may make sense to mix both approaches. Optimal mix will vary by data set, so no rule of thumb.
 #nodes used for update, calcNodes + z nodes
-y.nodes <- Rmodel$expandNodeNames("y.true") 
-N.node <- Rmodel$expandNodeNames("N")
+y.nodes <- Rmodel$expandNodeNames("y.true")
+N.node <- Rmodel$expandNodeNames(paste("N"))
 z.nodes <- Rmodel$expandNodeNames(paste("z[1:",M,"]"))
 s.nodes <- Rmodel$expandNodeNames("s")
 calcNodes <- c(N.node,y.nodes,s.nodes)
-conf$addSampler(target=c("N"),
-                type='zSampler',control=list(z.ups=z.ups,K=K,M=M,
-                                             y.nodes=y.nodes,N.node=N.node,z.nodes=z.nodes,
-                                             s.nodes=s.nodes,calcNodes=calcNodes,
-                                             res=data$constants$res,x.vals.edges=x.vals.edges,
-                                             y.vals.edges=y.vals.edges,avail.z=avail.z,
-                                             n.cells=data$constants$n.cells,n.cells.x=data$constants$n.cells.x,
-                                             n.cells.y=data$constants$n.cells.y),
-                silent=TRUE)
+ind.detected <- 1*(rowSums(nimbuild$y)>0)
+#how many N/z proposals per iteration by zSampler? Not sure what is optimal, setting to 25% of M here.
+z.ups <- round(M*0.25)
+conf$addSampler(target = c("N"),
+                type = 'zSampler',control = list(z.ups=z.ups,K=K,M=M,ind.detected=ind.detected,
+                                                 y.nodes=y.nodes,N.node=N.node,z.nodes=z.nodes,
+                                                 s.nodes=s.nodes,calcNodes=calcNodes,
+                                                 res=data$constants$res,x.vals.edges=x.vals.edges,
+                                                 y.vals.edges=y.vals.edges,avail.z=avail.z,
+                                                 n.cells=data$constants$n.cells,n.cells.x=data$constants$n.cells.x,
+                                                 n.cells.y=data$constants$n.cells.y),
+                silent = TRUE)
+#how many N/z proposals per iteration by zSampler2? Not sure what is optimal, setting to 25% of M here.
+z.ups2 <- round(M*0.25) # number of joint proposals per iteration
+#zSampler2 finds D0 dependencies itself (D.intercept, lambda, N)
+conf$addSampler(target = c("N"),
+                type = 'zSampler2',control = list(z.ups=z.ups2,K=K,M=M,ind.detected=ind.detected,
+                                                  y.nodes=y.nodes,N.node=N.node,z.nodes=z.nodes,
+                                                  s.nodes=s.nodes,calcNodes=calcNodes,
+                                                  res=data$constants$res,x.vals.edges=x.vals.edges,
+                                                  y.vals.edges=y.vals.edges,avail.z=avail.z,
+                                                  n.cells=data$constants$n.cells,n.cells.x=data$constants$n.cells.x,
+                                                  n.cells.y=data$constants$n.cells.y),
+                silent = TRUE)
 
 #replace default activity center sampler
 for(i in 1:M){
@@ -297,8 +314,8 @@ for(i in 1:data$constants$n.tel.inds){
 
 #obsmod is relatively expensive, so skipping AF_slice, adding RW_block
 #not always needed, check posterior correlation between them.
-conf$addSampler(target=c("beta.p.int","beta.p.effort"),
-                type='RW_block',control=list(adaptive=TRUE),silent=TRUE)
+# conf$addSampler(target=c("beta.p.int","beta.p.effort"),
+#                 type='RW_block',control=list(adaptive=TRUE),silent=TRUE)
 
 conf$addSampler(target=c("D0","D.beta1"),
                 type='AF_slice',control=list(adaptive=TRUE),silent=TRUE)
@@ -327,8 +344,9 @@ data$truth$n #target number detected
 mean(mvSamples[-c(1:burnin),"n"]) 
 
 #Check posterior correlation
-rem.idx <- which(colnames(mvSamples)%in%c("N","lambda"))
-tmp <- cor(mvSamples[-c(1:burnin),-rem.idx])
+#High correlation between D0 and N can be mitigated with zSampler2 updates (or more of them)
+tmp <- cor(mvSamples[-c(1:burnin),])
 diag(tmp) <- NA
 which(abs(tmp)>0.5,arr.ind=TRUE)
 round(tmp,2)
+
