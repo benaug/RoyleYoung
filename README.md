@@ -240,9 +240,9 @@ for other availability distributions.
 
 The fitted models therefore maintain three quantities for each active individual:
 
-* `avail.x`: one-dimensional x availability probabilities;
-* `avail.y`: one-dimensional y availability probabilities; and
-* `use.denom`: the RSF-weighted normalizing constant $D_i$.
+- `avail.x`: one-dimensional x availability probabilities;
+- `avail.y`: one-dimensional y availability probabilities; and
+- `use.denom`: the RSF-weighted normalizing constant $D_i$.
 
 When an activity center or $\sigma$ changes, the appropriate one-dimensional
 availability distributions and normalizing constant are updated. When the RSF
@@ -279,7 +279,7 @@ D_0
 A_c I_c\exp(\beta^{D}x_c),
 $$
 
-where \(A_c\) is cell area and \(I_c\) indicates whether the cell is part of the state space. Realized abundance then follows
+where $A_c$ is cell area and $I_c$ indicates whether the cell is part of the state space. Realized abundance then follows
 
 $$
 N\sim\mathrm{Poisson}(\lambda).
@@ -315,7 +315,7 @@ D_0'
 D_0\frac{N-1}{N}.
 $$
 
-Because \(\lambda\) is proportional to \(D_0\), this produces
+Because $\lambda$ is proportional to $D_0$, this produces
 
 $$
 \lambda'
@@ -331,9 +331,9 @@ $$
 \frac{\lambda}{N}.
 $$
 
-The proposal thus moves along the principal relationship between expected and realized abundance rather than changing \(N\) while holding expected abundance fixed.
+The proposal thus moves along the principal relationship between expected and realized abundance rather than changing $N$ while holding expected abundance fixed.
 
-Because the proposal for \(D_0\) is a deterministic multiplicative transformation, the Metropolis-Hastings ratio includes the corresponding Jacobian,
+Because the proposal for $D_0$ is a deterministic multiplicative transformation, the Metropolis-Hastings ratio includes the corresponding Jacobian,
 
 $$
 \left|
@@ -369,6 +369,6 @@ $$
 
 On this scale the deterministic transformation is a translation and its Jacobian is one. The two updates therefore describe the same ridge move expressed on different parameter scales.
 
-The joint update does not need to replace all conventional \(N/z\) updates. In models where the relationship between \(N\) and the density intercept is not extremely strong, for example when density covariates introduce substantial posterior dependence between the density intercept and slope, a mixture of ordinary \(N/z\) proposals and joint \(N/z/D_0\) proposals can provide better overall mixing.
+The joint update does not need to replace all conventional $N/z$ updates. In models where the relationship between $N$ and the density intercept is not extremely strong, for example when density covariates introduce substantial posterior dependence between the density intercept and slope, a mixture of ordinary $N/z$ proposals and joint $N/z/D_0$ proposals can provide better overall mixing.
 
 Brooks, S. P., P. Giudici, and G. O. Roberts. 2003. Efficient construction of reversible jump Markov chain Monte Carlo proposal distributions. *Journal of the Royal Statistical Society: Series B* 65:3-39.
