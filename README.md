@@ -137,8 +137,7 @@ D_i
 }.
 $$
 
-For a detected individual, the exact continuous location $\mathbf{u} _{ik}$ is observed.
-Within its cell, the continuous bivariate normal density factors into independent x- and y-normal densities. When the cell-use probability and the conditional within-cell density are combined, the cell availability term $a_{ic}$ cancels with the truncation normalization. The continuous likelihood contribution for a detected location in cell $c$ can therefore be written as
+For a detected individual, the exact continuous location $\mathbf{u} _{ik}$ is observed. Within its cell, the continuous bivariate normal density factors into independent x- and y-normal densities. When the cell-use probability and the conditional within-cell density are combined, the cell availability term cancels with the truncation normalization. The continuous likelihood contribution for a detected location in cell $c$ can therefore be written as
 
 $$
 f(\mathbf{u} _{ik}\mid\mathbf{s}_i) =
