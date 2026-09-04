@@ -43,9 +43,7 @@ $$
 The availability of cell $c$ is obtained by integrating the bivariate normal kernel centered on $\mathbf{s}_i$ over the area of the cell. Denote this cell probability by
 
 $$
-a_{ic}
-=
-P(\mathbf{u}_{ik} \in c \mid \mathbf{s}_i,\sigma),
+a_{ic} = P(\mathbf{u}_{ik} \in c \mid \mathbf{s}_i,\sigma),
 $$
 
 where $\sigma$ controls the spatial scale of within-home-range use. Resource selection reweights this cell availability distribution, giving the probability that the realized location occurs in cell $c$,
