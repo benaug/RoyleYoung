@@ -18,7 +18,7 @@ For a related model for sign transect or area searches with a Poisson observatio
 
 https://github.com/benaug/SCR_Sign_Search
 
-The within-home-range space-use model is closely related to the between-primary-period relocation model used in the Jolly-Seber N-Prior Data Augmentation repository:
+The within home range space use model is closely related to the between primary period relocation model used in the Jolly-Seber N-Prior Data Augmentation repository:
 
 https://github.com/benaug/Jolly-Seber-N-Prior-DA
 
@@ -28,13 +28,13 @@ Royle, J. A., and K. V. Young. 2008. A hierarchical model for spatial capture-re
 
 https://esajournals.onlinelibrary.wiley.com/doi/full/10.1890/07-0601.1
 
-## Within-home-range space use
+## Within home range space use
 
 The observation model can be viewed as an extension of the spatial capture-recapture model of Royle and Young (2008). In the original Royle-Young formulation, an individual's location during a sampling occasion is modeled as a realization from a bivariate normal distribution centered on its activity center. Detection is possible only when that realized location falls within the observation window, and an individual within the observation window is detected with a fixed probability $p$. Therefore, unlike conventional SCR models in which detection probability is specified directly as a function of distance between an activity center and a detector, the Royle-Young model explicitly represents the individual's realized continuous location during sampling and separates the probability of being available within the searched area from the probability of detection given availability. An interesting consequence of this model is that detection is exactly proportional to space use.
 
-The implementation here extends this idea from a single observation window to a regular grid of observation windows covering the searched area. On each sampling occasion, an individual occupies one realized continuous location, denoted $\mathbf{u} _{ik}$, and therefore can occur in only one grid cell. The underlying availability distribution for $\mathbf{u} _{ik}$ is a bivariate normal distribution centered on the individual's activity center $\mathbf{s}_i$. The model additionally allows within-home-range resource selection by weighting the probability of occurrence in each grid cell with a resource-selection function (RSF). Conditional on the selected cell, the realized location remains continuous and follows the bivariate normal distribution truncated to the boundaries of that cell. Therefore, the model retains the basic Royle-Young interpretation of a continuous realized location within an individual's home range while allowing both a spatially extensive search design and habitat-dependent space use.
+The implementation here extends this idea from a single observation window to a regular grid of observation windows covering the searched area. On each sampling occasion, an individual occupies one realized continuous location, denoted $\mathbf{u} _{ik}$, and therefore can occur in only one grid cell. The underlying availability distribution for $\mathbf{u} _{ik}$ is a bivariate normal distribution centered on the individual's activity center $\mathbf{s}_i$. The model additionally allows within home range resource selection by weighting the probability of occurrence in each grid cell with a resource selection function (RSF). Conditional on the selected cell, the realized location remains continuous and follows the bivariate normal distribution truncated to the boundaries of that cell. Therefore, the model retains the basic Royle-Young interpretation of a continuous realized location within an individual's home range while allowing both a spatially extensive search design and habitat dependent space use.
 
-For individual $i$, let $\mathbf{s}_i$ denote its activity center and let cell $c$ have resource-selection weight
+For individual $i$, let $\mathbf{s}_i$ denote its activity center and let cell $c$ have resource selection weight
 
 $$
 r_c = \exp(\mathbf{x}_c^\top\boldsymbol{\beta}^{\mathrm{RSF}}).
@@ -46,7 +46,7 @@ $$
 a_{ic} = P(\mathbf{u} _{ik} \in c \mid \mathbf{s}_i,\sigma),
 $$
 
-where $\sigma$ controls the spatial scale of within-home-range use. Resource selection reweights this cell availability distribution, giving the probability that the realized location occurs in cell $c$,
+where $\sigma$ controls the spatial scale of within home range use. Resource selection reweights this cell availability distribution, giving the probability that the realized location occurs in cell $c$,
 
 $$
 P(\mathbf{u} _{ik}\in c\mid\mathbf{s}_i,\sigma,
@@ -67,7 +67,7 @@ a_{ic}
 \qquad \mathbf{u} _{ik}\in c.
 $$
 
-Combining the RSF-weighted probability of using cell $c$ with the conditional within-cell distribution gives the continuous space-use density
+Combining the RSF-weighted probability of using cell $c$ with the conditional within cell distribution gives the continuous space use density
 
 $$
 f(\mathbf{u} _{ik}\mid\mathbf{s}_i,\sigma,
@@ -82,9 +82,9 @@ $$
 
 Therefore, proximity to the activity center determines availability through the bivariate normal kernel, while habitat covariates modify use through cell-specific RSF weights. The grid determines where the RSF weight changes, but the realized location $\mathbf{u} _{ik}$ remains continuous within each cell.
 
-A direct implementation of the Royle-Young formulation would retain a latent realized location $\mathbf{u} _{ik}$ for every individual and sampling occasion. These latent locations can lead to poor MCMC mixing because each $\mathbf{u} _{ik}$ must be updated while remaining consistent with the individual's activity center, space-use parameters, and detection history. Similarly, the activity centers are updated conditional on the current latent locations, which can constrain their movement through the state space.
+A direct implementation of the Royle-Young formulation would retain a latent realized location $\mathbf{u} _{ik}$ for every individual and sampling occasion. These latent locations can lead to poor MCMC mixing because each $\mathbf{u} _{ik}$ must be updated while remaining consistent with the individual's activity center, space use parameters, and detection history. Similarly, the activity centers are updated conditional on the current latent locations, which can constrain their movement through the state space.
 
-The approach used here therefore integrates unobserved $\mathbf{u} _{ik}$ values out of the likelihood. For a detection, $\mathbf{u} _{ik}$ is observed as the individual's continuous location on that occasion and contributes directly to the continuous space-use likelihood. For a nondetection, $\mathbf{u} _{ik}$ is latent and the likelihood integrates over all possible continuous locations at which the individual could have occurred without being detected. Because the RSF weight and detection process are defined at the cell level, this continuous-space integral can be evaluated using the integrated bivariate normal probability for each cell. The models here therefore do not retain or update latent $\mathbf{u} _{ik}$ values for nondetections, which removes the strong dependence between these latent locations and the activity centers and substantially improves MCMC mixing.
+The approach used here therefore integrates unobserved $\mathbf{u} _{ik}$ values out of the likelihood. For a detection, $\mathbf{u} _{ik}$ is observed as the individual's continuous location on that occasion and contributes directly to the continuous space use likelihood. For a nondetection, $\mathbf{u} _{ik}$ is latent and the likelihood integrates over all possible continuous locations at which the individual could have occurred without being detected. Because the RSF weight and detection process are defined at the cell level, this continuous space integral can be evaluated using the integrated bivariate normal probability for each cell. The models here therefore do not retain or update latent $\mathbf{u} _{ik}$ values for nondetections, which removes the strong dependence between these latent locations and the activity centers and substantially improves MCMC mixing.
 
 ### Factored representation
 
@@ -137,7 +137,7 @@ D_i
 }.
 $$
 
-For a detected individual, the exact continuous location $\mathbf{u} _{ik}$ is observed. Within its cell, the continuous bivariate normal density factors into independent x- and y-normal densities. When the cell-use probability and the conditional within-cell density are combined, the cell availability term cancels with the truncation normalization. The continuous likelihood contribution for a detected location in cell $c$ can therefore be written as
+For a detected individual, the exact continuous location $\mathbf{u} _{ik}$ is observed. Within its cell, the continuous bivariate normal density factors into independent x- and y-normal densities. When the cell-use probability and the conditional within cell density are combined, the cell availability term cancels with the truncation normalization. The continuous likelihood contribution for a detected location in cell $c$ can therefore be written as
 
 $$
 f(\mathbf{u} _{ik}\mid\mathbf{s}_i) =
@@ -152,7 +152,7 @@ $$
 
 where $\phi(\cdot)$ denotes a univariate normal density.
 
-For a nondetection, the continuous location $\mathbf{u} _{ik}$ is integrated out. Because the detection probability is constant within an observation cell, this integral depends on the RSF-weighted probability mass of the relevant cells rather than on the unknown exact within-cell location. Thus, both detected and nondetected observations can be evaluated from the same factored availability representation without retaining latent continuous locations for nondetections.
+For a nondetection, the continuous location $\mathbf{u} _{ik}$ is integrated out. Because the detection probability is constant within an observation cell, this integral depends on the RSF-weighted probability mass of the relevant cells rather than on the unknown exact within cell location. Thus, both detected and nondetected observations can be evaluated from the same factored availability representation without retaining latent continuous locations for nondetections.
 
 This factorization is exact for the rectangular grid and independent x- and y-components of the bivariate normal model. A different approach is required for other availability distributions.
 
@@ -162,11 +162,18 @@ The fitted models therefore maintain three quantities for each active individual
 - `avail.y`: one-dimensional y availability probabilities; and
 - `use.denom`: the RSF-weighted normalizing constant $D_i$.
 
-When an activity center or $\sigma$ changes, the appropriate one-dimensional availability distributions and normalizing constant are updated. When the RSF coefficient changes, the availability distributions do not change, so only the RSF-weighted normalizing constant needs to be recomputed. This separation substantially reduces repeated normal-CDF calculations during MCMC.
+When an activity center or $\sigma$ changes, the appropriate one-dimensional availability distributions and normalizing constant are updated. When the RSF coefficient changes, the availability distributions do not change, so only the RSF-weighted normalizing constant needs to be recomputed. This separation substantially reduces repeated normal CDF calculations during MCMC.
 
-## Joint abundance and density-intercept update
+## Gating activity centers and space use by population membership
 
-These models use N-prior data augmentation rather than conventional binomial data augmentation, with an abundance update that adds or subtracts one individual at a time (but implemented multiple times per MCMC iteration). In sparse-data scenarios, particularly with large $N$, the posterior correlation between the density intercept parameter and realized abundance can be very large, resulting in poor MCMC mixing. Therefore, I include a second version of this standard update that jointly proposes to increase or decrease the density intercept when proposing to increase or decrease realized abundance. This joint proposal better follows the posterior relationship between expected and realized abundance. This approach uses a deterministic joint proposal that rescales the density intercept when abundance changes, similar to centered proposal constructions for improving between-state moves in reversible-jump MCMC (Brooks et al. 2003). In the application that motivated this approach, the effective sample size for realized abundance approximately doubled.
+The activity center and within home range space use components are gated by the data augmentation indicator $z_i$. When $z_i=0$, the individual's activity center, one-dimensional availability vectors, and use normalizing constant are set to zero and contribute no likelihood. When an augmented individual is turned on, its activity center and associated space use quantities are initialized jointly with $z_i$.
+
+This avoids maintaining and updating latent activity centers and space use distributions for augmented individuals that are not currently part of the population. In these models this reduces unnecessary calculations and improves MCMC efficiency.
+
+
+## Joint abundance and density intercept update
+
+These models use N-prior data augmentation rather than conventional binomial data augmentation, with an abundance update that adds or subtracts one individual at a time (but implemented multiple times per MCMC iteration). In sparse data scenarios, particularly with large $N$, the posterior correlation between the density intercept parameter and realized abundance can be very large, resulting in poor MCMC mixing. Therefore, I include a second version of this standard update that jointly proposes to increase or decrease the density intercept when proposing to increase or decrease realized abundance. This joint proposal better follows the posterior relationship between expected and realized abundance. This approach uses a deterministic joint proposal that rescales the density intercept when abundance changes, similar to centered proposal constructions for improving between state moves in reversible jump MCMC (Brooks et al. 2003). In the application that motivated this approach, the effective sample size for realized abundance approximately doubled.
 
 Expected abundance is determined by the spatial density model. For example, with a single density covariate,
 
@@ -249,9 +256,9 @@ $$
 \log\left(\frac{N'}{N}\right)
 $$
 
-in addition to the usual target-density and birth/death proposal terms.
+in addition to the usual target density and birth/death proposal terms.
 
-The equivalent update can be written on the log-density scale. If
+The equivalent update can be written on the log density scale. If
 
 $$
 D_{\beta0}=\log(D_0),
