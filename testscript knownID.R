@@ -17,7 +17,7 @@ cols2 <- brewer.pal(9,"YlOrBr")
 #state space. Must start at (0,0)
 xlim <- c(0,100)
 ylim <- c(0,100)
-res <- 2.5 #resolution, cell width/height
+res <- 2 #resolution, cell width/height
 if(xlim[1]!=0|ylim[1]!=0)stop("xlim and ylim must start at 0.")
 if((diff(range(xlim))/res)%%1!=0)stop("The range of xlim must be divisible by 'res'")
 if((diff(range(ylim))/res)%%1!=0)stop("The range of ylim must be divisible by 'res'")
@@ -137,19 +137,42 @@ table(rowSums(data$capture$y)) #number of inds captures X times
 hist(data$summaries$p.marg.i,breaks=50,main="Individual Cumulative Detection Probabilities|Search Effort",
      xlim=c(0,1),xlab="Detection Prob")
 
-
 #can inspect every individual's availability and use distributions
 #useful to check if simulated behavior is realistic
-# par(mfrow=c(2,1)) #if you want to plot availability over use
+# col.ramp <- viridisLite::cividis(10)
+# sig.multiplier <- 5*sigma
+# 
 # i <- 1
 # i <- i + 1
-# image(x.vals,y.vals,matrix(data$truth$avail.dist[i,],n.cells.x,n.cells.y),main="Availibility Distribution",xlab="X",ylab="Y")
-# image(x.vals,y.vals,matrix(data$truth$use.dist[i,],n.cells.x,n.cells.y),main="Use Distribution",xlab="X",ylab="Y")
-# par(mfrow=c(1,1)) #set back
+# par(mfrow=c(1,3))
+# this.s <- data$truth$s[i,]
+# #plot locally around this s, get zlims for this local window
+# xlim <- this.s[1] + c(-sig.multiplier,sig.multiplier)
+# ylim <- this.s[2] + c(-sig.multiplier,sig.multiplier)
+# ix <- x.vals >= xlim[1] & x.vals <= xlim[2]
+# iy <- y.vals >= ylim[1] & y.vals <= ylim[2]
+# #availability
+# z <- matrix(data$truth$avail.dist[i,],n.cells.x,n.cells.y)
+# zlim <- range(z[ix,iy],finite=TRUE)
+# image(x.vals,y.vals,z,xlim=xlim,ylim=ylim,zlim=zlim,
+#       main="Availability Distribution",xlab="X",ylab="Y",col=col.ramp)
+# points(this.s[1],this.s[2],col="darkred",pch=16)
+# #RSF (sometimes easier to visualize on log scale)
+# z <- matrix(data$truth$rsf,n.cells.x,n.cells.y)
+# zlim <- range(z[ix,iy],finite=TRUE)
+# image(x.vals,y.vals,z,xlim=xlim,ylim=ylim,zlim=zlim,
+#       main="RSF Function",xlab="X",ylab="Y",col=col.ramp)
+# points(this.s[1],this.s[2],col="darkred",pch=16)
+# #use
+# z <- matrix(data$truth$use.dist[i,],n.cells.x,n.cells.y)
+# zlim <- range(z[ix,iy],finite=TRUE)
+# image(x.vals,y.vals,z,xlim=xlim,ylim=ylim,zlim=zlim,
+#       main="Use Distribution",xlab="X",ylab="Y",col=col.ramp)
+# points(this.s[1],this.s[2],col="darkred",pch=16)
+# par(mfrow=c(1,1))
+
 
 ##Fit Model
-
-
 M <- 300 #data augmentation limit. Must be larger than simulated N. If N posterior hits M, need to raise M and try again.
 if(M<=data$truth$N)stop("Raise M to be larger than simulated N.")
 
